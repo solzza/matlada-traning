@@ -15,6 +15,45 @@ const requiredDailySlots = [
 
 const extraSlotTags = ["Mellanmål", "Snack", "Annat"];
 
+const mealProfiles = [
+  {
+    tag: "Frukost",
+    label: "Frukost",
+    share: { kcal: 0.24, protein: 0.22, carbs: 0.25, fat: 0.22 },
+    focus: "stabil start med protein och lagom kolhydrater",
+  },
+  {
+    tag: "Lunch",
+    label: "Lunch",
+    share: { kcal: 0.32, protein: 0.32, carbs: 0.33, fat: 0.30 },
+    focus: "stor basmåltid som bär mycket av dagens protein och energi",
+  },
+  {
+    tag: "Middag",
+    label: "Middag",
+    share: { kcal: 0.32, protein: 0.32, carbs: 0.31, fat: 0.32 },
+    focus: "stor basmåltid med protein, grönsaker och kontrollerad energimängd",
+  },
+  {
+    tag: "Mellanmål",
+    label: "Mellanmål",
+    share: { kcal: 0.13, protein: 0.12, carbs: 0.12, fat: 0.12 },
+    focus: "kompakt mål som fyller luckor utan att bli en hel huvudmåltid",
+  },
+  {
+    tag: "Snack",
+    label: "Snack",
+    share: { kcal: 0.08, protein: 0.08, carbs: 0.07, fat: 0.08 },
+    focus: "litet och enkelt tillskott när du saknar lite energi eller protein",
+  },
+  {
+    tag: "Annat",
+    label: "Extra",
+    share: { kcal: 0.10, protein: 0.10, carbs: 0.09, fat: 0.10 },
+    focus: "flexibelt extra mål som justerar dagens återstående behov",
+  },
+];
+
 const initialData = window.MATDASH_DATA || {
   generatedAt: new Date().toISOString(),
   sourceFile: "",
@@ -46,6 +85,10 @@ let activeFoodInput = null;
 let deferredInstallPrompt = null;
 
 const els = {
+  settingsToggle: document.querySelector("#settingsToggle"),
+  settingsBackdrop: document.querySelector("#settingsBackdrop"),
+  settingsPanel: document.querySelector("#settingsPanel"),
+  closeSettings: document.querySelector("#closeSettings"),
   dataStatus: document.querySelector("#dataStatus"),
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
@@ -82,9 +125,13 @@ const els = {
   addTemporaryItem: document.querySelector("#addTemporaryItem"),
   addExtraSlot: document.querySelector("#addExtraSlot"),
   logToday: document.querySelector("#logToday"),
+  installSection: document.querySelector(".app-install-section"),
   installApp: document.querySelector("#installApp"),
   resetData: document.querySelector("#resetData"),
   saveBackup: document.querySelector("#saveBackup"),
+  importBackup: document.querySelector("#importBackup"),
+  backupFile: document.querySelector("#backupFile"),
+  settingsStatus: document.querySelector("#settingsStatus"),
 };
 
 function clone(value) {
@@ -244,33 +291,137 @@ function getRecipesByTag(tag) {
   return state.recipes.filter((recipe) => recipeHasTag(recipe, tag));
 }
 
+function getRecipeMealProfile(recipe) {
+  const recipeTags = recipe.tags || [];
+  const profiles = mealProfiles.filter((profile) =>
+    recipeTags.some((tag) => normalizeTag(tag) === normalizeTag(profile.tag)),
+  );
+  if (!profiles.length) return null;
+  if (profiles.length === 1) return profiles[0];
+
+  const share = Object.fromEntries(
+    macroKeys.map(([key]) => [
+      key,
+      profiles.reduce((sum, profile) => sum + profile.share[key], 0) / profiles.length,
+    ]),
+  );
+  return {
+    tag: profiles.map((profile) => profile.tag).join("/"),
+    label: profiles.map((profile) => profile.label).join("/"),
+    share,
+    focus: "kombinerad rätt som ska fungera i flera måltidslägen",
+  };
+}
+
+function getMealMacroGoal(profile) {
+  const target = state.targets[activeTarget];
+  return Object.fromEntries(
+    macroKeys.map(([key]) => [key, number(target[key]) * profile.share[key]]),
+  );
+}
+
+function getMealPurposeWord(profile) {
+  return profile.label.toLowerCase();
+}
+
 function getFoodMatches(query, limit = 10) {
   const q = normalizeSearch(query);
   if (q.length < 1) return [];
   const terms = q.split(/\s+/).filter(Boolean);
-  return state.foods
-    .map((food) => {
-      const name = normalizeSearch(food.name);
-      const group = normalizeSearch(food.group);
-      const words = name.split(/\s+/).filter(Boolean);
-      let score = 0;
-      if (name === q) score += 100;
-      if (name.startsWith(q)) score += 70;
-      if (name.includes(q)) score += 35;
-      terms.forEach((term) => {
-        if (name.startsWith(term)) score += 15;
-        else if (words.some((word) => word.startsWith(term))) score += 12;
-        else if (name.includes(term)) score += 8;
-        if (group.includes(term)) score += 2;
-      });
-      if (terms.every((term) => name.includes(term) || group.includes(term))) score += 20;
-      if (food.source === "Eget") score += 5;
-      return { food, score };
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name, "sv"))
+  return rankFoodMatches(q, terms, limit);
+}
+
+function getRankedFoodMatches(query, limit = 200) {
+  const q = normalizeSearch(query);
+  if (q.length < 1) return state.foods.slice(0, limit);
+  const terms = q.split(/\s+/).filter(Boolean);
+  return rankFoodMatches(q, terms, limit);
+}
+
+function rankFoodMatches(q, terms, limit) {
+  const matches = state.foods
+    .map((food, index) => ({
+      food,
+      index,
+      score: scoreFoodMatch(food, q, terms),
+    }))
+    .filter((item) => item.score > 0);
+  const fullNameMatches = terms.length > 1
+    ? matches.filter((item) => foodNameIncludesAllTerms(item.food, terms))
+    : [];
+  return (fullNameMatches.length ? fullNameMatches : matches)
+    .sort((a, b) => b.score - a.score || a.food.name.localeCompare(b.food.name, "sv") || a.index - b.index)
     .slice(0, limit)
     .map((item) => item.food);
+}
+
+function foodNameIncludesAllTerms(food, terms) {
+  const name = normalizeSearch(food.name);
+  return terms.every((term) => name.includes(term));
+}
+
+function scoreFoodMatch(food, q, terms) {
+  const name = normalizeSearch(food.name);
+  const group = normalizeSearch(food.group);
+  const words = name.split(/\s+/).filter(Boolean);
+  const compactName = name.replace(/\s+/g, "");
+  const compactQuery = q.replace(/\s+/g, "");
+  let score = 0;
+
+  if (name === q) score += 180;
+  if (name.startsWith(q)) score += 130;
+  else if (words.some((word) => word === q)) score += 105;
+  else if (words.some((word) => word.startsWith(q))) score += 82;
+  else if (name.includes(q)) score += 58;
+  else if (compactQuery.length >= 4 && compactName.includes(compactQuery)) score += 64;
+  else if (compactQuery.length >= 7) score += getOrderedMatchScore(compactQuery, compactName);
+
+  terms.forEach((term, termIndex) => {
+    const exactWordIndex = words.findIndex((word) => word === term);
+    const prefixWordIndex = words.findIndex((word) => word.startsWith(term));
+    const insideWordIndex = words.findIndex((word) => word.includes(term));
+
+    if (exactWordIndex === 0) score += 60;
+    else if (exactWordIndex > 0) score += 48 - Math.min(exactWordIndex, 6);
+    else if (prefixWordIndex === 0) score += 46;
+    else if (prefixWordIndex > 0) score += 36 - Math.min(prefixWordIndex, 6);
+    else if (insideWordIndex >= 0) score += 22 - Math.min(insideWordIndex, 6);
+
+    if (name.startsWith(term)) score += 18;
+    if (group.includes(term)) score += 6;
+    if (termIndex > 0 && name.includes(term)) score += 5;
+  });
+
+  if (terms.every((term) => name.includes(term))) score += 55;
+  else if (terms.every((term) => name.includes(term) || group.includes(term))) score += 18;
+
+  const firstMatch = terms
+    .map((term) => name.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0];
+  if (firstMatch !== undefined) score += Math.max(0, 18 - firstMatch);
+
+  if (score > 0 && food.source === "Eget") score += 8;
+  score -= Math.min(words.length, 14) * 0.15;
+  return Math.max(0, score);
+}
+
+function getOrderedMatchScore(term, value) {
+  let cursor = 0;
+  let first = -1;
+  let last = -1;
+
+  for (const char of term) {
+    const found = value.indexOf(char, cursor);
+    if (found === -1) return 0;
+    if (first === -1) first = found;
+    last = found;
+    cursor = found + 1;
+  }
+
+  const extraChars = last - first + 1 - term.length;
+  if (extraChars > Math.max(8, Math.floor(term.length * 0.75))) return 0;
+  return Math.max(14, 42 - extraChars - Math.min(first, 18) * 0.5);
 }
 
 function normalizeSearch(value) {
@@ -630,12 +781,20 @@ function renderDailySlot(slot, required) {
     .join("");
 
   return `
-    <div class="meal-slot ${required ? "required" : ""}">
+    <div class="meal-slot ${required ? "required" : "extra"}">
       <div class="meal-slot-head">
-        <strong>${escapeHtml(slot.label)}</strong>
+        ${required
+          ? `<strong>${escapeHtml(slot.label)}</strong>`
+          : `
+            <div class="extra-slot-title">
+              <strong>Extra</strong>
+              <select class="extra-slot-tag" data-extra-slot-tag="${slot.id}" aria-label="Välj tagg för extra">
+                ${tagOptions}
+              </select>
+            </div>
+          `}
         ${required ? `<span class="required-badge">Obligatorisk</span>` : `<button class="remove-ingredient" type="button" data-remove-extra-slot="${slot.id}" title="Ta bort">×</button>`}
       </div>
-      ${required ? "" : `<select data-extra-slot-tag="${slot.id}">${tagOptions}</select>`}
       <div class="meal-slot-controls">
         <select data-daily-slot="${slot.id}">
           <option value="">Välj ${escapeHtml(slot.tag.toLowerCase())}</option>
@@ -780,7 +939,13 @@ function renderTagChips(recipeId, tags, editable) {
     <div class="tag-editor">
       <div class="tag-chip-list">
         ${tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}${editable ? `<button type="button" data-remove-tag="${recipeId}:${escapeAttr(tag)}" title="Ta bort tagg">×</button>` : ""}</span>`).join("")}
-        ${editable ? `<button class="tag-chip phantom-tag" type="button" data-show-tag-input="${recipeId}">+ tagg</button><input class="phantom-tag-input" list="tagOptions" hidden data-new-tag="${recipeId}" placeholder="Skriv tagg">` : ""}
+        ${editable ? `
+          <button class="tag-chip phantom-tag" type="button" data-show-tag-input="${recipeId}">+ tagg</button>
+          <span class="tag-add-row" hidden data-tag-add-row="${recipeId}">
+            <input class="phantom-tag-input" list="tagOptions" data-new-tag="${recipeId}" placeholder="Skriv tagg">
+            <button class="tag-save" type="button" data-save-tag="${recipeId}">Spara</button>
+          </span>
+        ` : ""}
       </div>
     </div>
   `;
@@ -788,19 +953,81 @@ function renderTagChips(recipeId, tags, editable) {
 
 function renderRecipeAdvice(recipe) {
   const macros = getRecipeMacros(recipe);
-  const target = state.targets[activeTarget];
+  const profile = getRecipeMealProfile(recipe);
   const tips = [];
-  if (macros.protein < target.protein * 0.2) tips.push("Proteinet är lågt för en huvudmåltid. Öka kyckling, tonfisk, kvarg eller lägg till whey om rätten passar.");
-  if (macros.fat < target.fat * 0.12) tips.push("Fettet är väldigt lågt. Lite olivolja, avokado, nötter eller fetare fisk kan göra rätten mer balanserad.");
-  if (macros.carbs > target.carbs * 0.45) tips.push("Kolhydraterna tar stor plats. Bra runt träning, men minska pasta/ris/quinoa om det här ska vara vilodagsmat.");
-  if (!recipe.ingredients.some((item) => /broccoli|paprika|lök|tomat|grönsak|bönor|spenat|morot/i.test(item.name))) {
-    tips.push("Lägg gärna till grönsaker eller baljväxter för fiber, kalium, folat och bättre mättnad.");
+
+  if (!profile) {
+    tips.push("Saknar måltidstagg. Lägg till Frukost, Lunch, Middag, Mellanmål eller Snack så kan målet bli mer träffsäkert.");
+    if (macros.kcal || macros.protein || macros.carbs || macros.fat) {
+      tips.push(`Just nu ger rätten ${format(macros.kcal)} kcal, ${format(macros.protein, 1)} g protein, ${format(macros.carbs, 1)} g kolh och ${format(macros.fat, 1)} g fett.`);
+    }
+    return `
+      <div class="recipe-advice">
+        <strong>Förslag</strong>
+        ${tips.map((tip) => `<p>${escapeHtml(tip)}</p>`).join("")}
+      </div>
+    `;
   }
-  if (!tips.length) tips.push("Rätten ser balanserad ut mot dina mål. Finjustera främst portionen efter dagens total.");
+
+  const goal = getMealMacroGoal(profile);
+  const purpose = getMealPurposeWord(profile);
+  const targetModeLabel = activeTarget === "training" ? "träningsdag" : "vilodag";
+  const tags = String(profile.tag).split("/").map(normalizeTag);
+  const isMainMeal = tags.some((tag) => ["lunch", "middag"].includes(tag));
+  const isBreakfast = tags.includes(normalizeTag("Frukost"));
+  const isSmallMeal = tags.some((tag) => [normalizeTag("Mellanmål"), normalizeTag("Snack")].includes(tag));
+
+  const proteinBoost = isBreakfast
+    ? "ägg, kvarg, keso eller whey"
+    : isSmallMeal
+      ? "kvarg, keso, whey eller proteinrik yoghurt"
+      : "kyckling, tonfisk, lax, tofu, bönor eller magert kött";
+  const carbBoost = isBreakfast
+    ? "havregryn, banan, bär eller fullkornsbröd"
+    : isSmallMeal
+      ? "frukt, yoghurt, havre eller en mindre brödbit"
+      : "ris, potatis, pasta, quinoa eller bönor";
+
+  if (macros.kcal < goal.kcal * 0.78) {
+    tips.push(`För ${purpose} är energin låg. Sikta närmare ${format(goal.kcal)} kcal genom större portion eller mer ${carbBoost}.`);
+  } else if (macros.kcal > goal.kcal * 1.28) {
+    const scaleText = isSmallMeal ? "Det här blir mer som en huvudmåltid" : "Minska portionsstorlek eller de energitätaste delarna";
+    tips.push(`${scaleText}: ${format(macros.kcal)} kcal mot riktmärke ${format(goal.kcal)} kcal för ${purpose}.`);
+  }
+
+  if (macros.protein < goal.protein * 0.82) {
+    tips.push(`Proteinet är lågt för ${purpose}. Lägg till ${proteinBoost} så rätten närmar sig ${format(goal.protein)} g protein.`);
+  } else if (macros.protein > goal.protein * 1.55 && !isMainMeal) {
+    tips.push(`Proteinet är högt för ${purpose}. Det är okej om dagen saknar protein, annars kan portionen göras mindre.`);
+  }
+
+  if (macros.carbs < goal.carbs * 0.65 && !isSmallMeal) {
+    tips.push(`Kolhydraterna är låga för ${purpose}. Lägg till ${carbBoost}, särskilt på träningsdagar.`);
+  } else if (macros.carbs > goal.carbs * 1.35) {
+    tips.push(`Kolhydraterna tar stor plats för ${purpose}. Minska pasta/ris/quinoa eller flytta mer kolhydrater till en annan måltid.`);
+  }
+
+  if (macros.fat < goal.fat * 0.55 && !isSmallMeal) {
+    tips.push(`Fettet är lågt för ${purpose}. Lite olivolja, avokado, nötter eller fetare fisk gör målet mer balanserat.`);
+  } else if (macros.fat > goal.fat * 1.45) {
+    tips.push(`Fettet är högt mot målet för ${purpose}. Minska olja, ost, nötter eller feta såser om kcal behöver hållas nere.`);
+  }
+
+  if (isMainMeal && !recipe.ingredients.some((item) => /broccoli|paprika|lök|tomat|grönsak|bönor|spenat|morot|sallad|kål/i.test(item.name))) {
+    tips.push("Som lunch/middag mår rätten bra av mer grönsaker eller baljväxter för fiber, volym och mättnad.");
+  }
+
+  if (!tips.length) {
+    tips.push(`Rätten ligger nära målet för ${purpose}. Finjustera främst portionen efter vad som återstår av dagen.`);
+  }
+
+  const targetLine = `Målnivå på ${targetModeLabel}: ca ${format(goal.kcal)} kcal · ${format(goal.protein)} g protein · ${format(goal.carbs)} g kolh · ${format(goal.fat)} g fett. Fokus: ${profile.focus}.`;
+
   return `
     <div class="recipe-advice">
-      <strong>Förslag</strong>
-      ${tips.map((tip) => `<p>${escapeHtml(tip)}</p>`).join("")}
+      <strong>Förslag för ${escapeHtml(profile.label)}</strong>
+      <p class="recipe-advice-target">${escapeHtml(targetLine)}</p>
+      ${tips.slice(0, 4).map((tip) => `<p>${escapeHtml(tip)}</p>`).join("")}
     </div>
   `;
 }
@@ -1002,10 +1229,7 @@ function formatPracticalAmount(name, grams) {
 }
 
 function renderFoods() {
-  const query = els.foodSearch.value.trim().toLowerCase();
-  const foods = state.foods
-    .filter((food) => !query || food.name.toLowerCase().includes(query) || String(food.group || "").toLowerCase().includes(query))
-    .slice(0, 200);
+  const foods = getRankedFoodMatches(els.foodSearch.value, 200);
   els.foodRows.innerHTML = foods
     .map((food) => {
       const index = state.foods.indexOf(food);
@@ -1037,15 +1261,17 @@ function renderFoods() {
 
 function addRecipe() {
   const id = makeId("ratt");
+  const tags = activeRecipeTag !== "all" ? [activeRecipeTag] : [];
   state.recipes.push({
     id,
     name: "Ny rätt",
     defaultServings: 1,
     ingredients: [{ name: "", grams: 100 }],
-    tags: [],
+    tags,
   });
   state.cookPlan.push({ recipeId: id, servings: 5 });
   state.dailyPlan.push({ recipeId: id, servings: 1 });
+  editingRecipeId = id;
   saveState();
   render();
 }
@@ -1091,6 +1317,26 @@ function addTagToRecipe(recipeId, value) {
   }
   saveState();
   render();
+}
+
+function openTagInput(recipeId) {
+  const row = document.querySelector(`[data-tag-add-row="${CSS.escape(recipeId)}"]`);
+  const input = document.querySelector(`[data-new-tag="${CSS.escape(recipeId)}"]`);
+  if (!row || !input) return;
+  row.hidden = false;
+  input.value = "";
+  input.focus();
+}
+
+function saveNewTag(recipeId) {
+  const input = document.querySelector(`[data-new-tag="${CSS.escape(recipeId)}"]`);
+  if (!input) return;
+  if (!input.value.trim()) {
+    const row = input.closest("[data-tag-add-row]");
+    if (row) row.hidden = true;
+    return;
+  }
+  addTagToRecipe(recipeId, input.value);
 }
 
 function addFood() {
@@ -1392,17 +1638,71 @@ function updateTargetInputs() {
   renderOverview();
 }
 
+function setSettingsOpen(open) {
+  if (!els.settingsPanel || !els.settingsBackdrop || !els.settingsToggle) return;
+  els.settingsPanel.hidden = !open;
+  els.settingsBackdrop.hidden = !open;
+  els.settingsToggle.setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("settings-open", open);
+  if (open) {
+    els.closeSettings?.focus();
+  } else {
+    els.settingsToggle.focus();
+  }
+}
+
+function showSettingsStatus(message) {
+  if (!els.settingsStatus) return;
+  els.settingsStatus.textContent = message;
+}
+
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `matdash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showSettingsStatus("Exporterad.");
+}
+
+async function importBackupFile(file) {
+  if (!file) return;
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    state = normalizeState(parsed);
+    activeTarget = state.targets[activeTarget] ? activeTarget : "training";
+    activeRecipeTag = "all";
+    selectedMenuId = state.menus[0]?.id || "";
+    editingRecipeId = "";
+    expandedMenuItemId = "";
+    editingLogId = "";
+    activeFoodInput = null;
+    saveState();
+    render();
+    showSettingsStatus("Importerad.");
+  } catch {
+    showSettingsStatus("Kunde inte importera filen.");
+  } finally {
+    els.backupFile.value = "";
+  }
+}
+
 function bindInstallPrompt() {
   if (!els.installApp) return;
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
+    if (els.installSection) els.installSection.hidden = false;
     els.installApp.hidden = false;
   });
 
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
+    if (els.installSection) els.installSection.hidden = true;
     els.installApp.hidden = true;
   });
 
@@ -1417,6 +1717,15 @@ function bindInstallPrompt() {
 
 function bindEvents() {
   bindInstallPrompt();
+
+  els.settingsToggle?.addEventListener("click", () => setSettingsOpen(true));
+  els.closeSettings?.addEventListener("click", () => setSettingsOpen(false));
+  els.settingsBackdrop?.addEventListener("click", () => setSettingsOpen(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.settingsPanel?.hidden) {
+      setSettingsOpen(false);
+    }
+  });
 
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -1458,19 +1767,25 @@ function bindEvents() {
   });
 
   els.resetData.addEventListener("click", () => {
+    if (!window.confirm("Återställ all data?")) return;
     localStorage.removeItem(STORE_KEY);
     state = loadState();
     render();
+    showSettingsStatus("Återställt.");
   });
 
-  els.saveBackup.addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `matdash-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  els.saveBackup.addEventListener("click", exportBackup);
+  els.importBackup?.addEventListener("click", () => {
+    els.backupFile?.click();
+  });
+  els.backupFile?.addEventListener("change", (event) => {
+    const [file] = event.target.files || [];
+    if (!file) return;
+    if (!window.confirm("Importera backup och ersätt nuvarande data?")) {
+      event.target.value = "";
+      return;
+    }
+    importBackupFile(file);
   });
 
   document.addEventListener("input", (event) => {
@@ -1750,6 +2065,22 @@ function bindEvents() {
     }
   });
 
+  document.addEventListener("focusout", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const recipeId = target.dataset.newTag;
+    if (!recipeId) return;
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof HTMLElement && nextTarget.closest(`[data-save-tag="${CSS.escape(recipeId)}"]`)) return;
+    const value = target.value.trim();
+    if (!value) {
+      const row = target.closest("[data-tag-add-row]");
+      if (row) row.hidden = true;
+      return;
+    }
+    window.setTimeout(() => addTagToRecipe(recipeId, value), 0);
+  });
+
   document.addEventListener("click", (event) => {
     const rawTarget = event.target;
     const target = rawTarget instanceof HTMLElement ? rawTarget : null;
@@ -1763,6 +2094,12 @@ function bindEvents() {
 
     if (!target.closest("#foodSuggest") && !target.closest("[data-food-lookup]")) {
       hideFoodSuggest();
+    }
+
+    const tagToSave = target.closest("[data-save-tag]")?.dataset.saveTag;
+    if (tagToSave) {
+      saveNewTag(tagToSave);
+      return;
     }
 
     const recipeToEdit = target.closest("[data-edit-recipe]")?.dataset.editRecipe;
@@ -1800,11 +2137,7 @@ function bindEvents() {
 
     const showTagInput = target.closest("[data-show-tag-input]")?.dataset.showTagInput;
     if (showTagInput) {
-      const input = document.querySelector(`[data-new-tag="${CSS.escape(showTagInput)}"]`);
-      if (input) {
-        input.hidden = false;
-        input.focus();
-      }
+      openTagInput(showTagInput);
       return;
     }
 

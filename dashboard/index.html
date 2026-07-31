@@ -13,6 +13,11 @@
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
+    <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Öppna inställningar" aria-controls="settingsPanel" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
@@ -30,30 +35,6 @@
           <button class="tab" data-view="log" data-short="Logg" type="button">Kostlogg</button>
           <button class="tab" data-view="foods" data-short="Mat" type="button">Livsmedel</button>
         </nav>
-        <details class="target-panel">
-          <summary>
-            <span>Mål</span>
-            <strong id="targetSummary">Träningsdag</strong>
-          </summary>
-          <div class="target-fields">
-            <label for="targetMode">Dagtyp</label>
-            <select id="targetMode">
-              <option value="training">Träningsdag</option>
-              <option value="rest">Vilodag</option>
-            </select>
-            <div class="target-grid">
-              <label>kcal<input id="targetKcal" type="number" min="0" step="10"></label>
-              <label>protein<input id="targetProtein" type="number" min="0" step="1"></label>
-              <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
-              <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
-            </div>
-          </div>
-        </details>
-        <div class="actions">
-          <button id="installApp" type="button" hidden>Installera</button>
-          <button id="saveBackup" type="button">Exportera</button>
-          <button id="resetData" type="button">Återställ</button>
-        </div>
       </aside>
 
       <main class="content">
@@ -217,6 +198,49 @@
         </section>
       </main>
     </div>
+
+    <div id="settingsBackdrop" class="settings-backdrop" hidden></div>
+    <aside id="settingsPanel" class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+      <div class="settings-panel-head">
+        <div>
+          <h2 id="settingsTitle">Inställningar</h2>
+          <p id="targetSummary">Träningsdag</p>
+        </div>
+        <button id="closeSettings" class="settings-close" type="button" aria-label="Stäng inställningar">×</button>
+      </div>
+      <div class="settings-content">
+        <section class="settings-section">
+          <h3>Mål</h3>
+          <div class="target-fields">
+            <label for="targetMode">Dagtyp</label>
+            <select id="targetMode">
+              <option value="training">Träningsdag</option>
+              <option value="rest">Vilodag</option>
+            </select>
+            <div class="target-grid">
+              <label>kcal<input id="targetKcal" type="number" min="0" step="10"></label>
+              <label>protein<input id="targetProtein" type="number" min="0" step="1"></label>
+              <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
+              <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
+            </div>
+          </div>
+        </section>
+        <section class="settings-section">
+          <h3>Data</h3>
+          <div class="settings-actions">
+            <button id="saveBackup" type="button">Exportera</button>
+            <button id="importBackup" type="button">Importera</button>
+            <button id="resetData" type="button">Återställ</button>
+          </div>
+          <input id="backupFile" type="file" accept="application/json,.json" hidden>
+        </section>
+        <section class="settings-section app-install-section" hidden>
+          <h3>App</h3>
+          <button id="installApp" type="button" hidden>Installera</button>
+        </section>
+        <p id="settingsStatus" class="settings-status" aria-live="polite"></p>
+      </div>
+    </aside>
 
     <template id="ingredientTemplate">
       <div class="ingredient-row">

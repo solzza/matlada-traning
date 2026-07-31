@@ -215,113 +215,173 @@ textarea {
   box-shadow: 0 0 0 3px rgba(240, 180, 94, 0.18);
 }
 
-.target-panel {
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+.settings-toggle {
+  position: fixed;
+  z-index: 45;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 14px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 10px;
+  border-color: rgba(23, 35, 31, 0.12);
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: var(--shadow-soft);
 }
 
-.target-panel summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 36px;
-  color: #fffdf8;
-  cursor: pointer;
-  list-style: none;
+.settings-toggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--sidebar);
 }
 
-.target-panel summary::-webkit-details-marker {
+.settings-backdrop {
+  position: fixed;
+  z-index: 38;
+  inset: 0;
+  background: rgba(23, 35, 31, 0.35);
+}
+
+.settings-panel {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(420px, 100vw);
+  padding: calc(18px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: -18px 0 42px rgba(55, 42, 24, 0.2);
+}
+
+.settings-toggle[hidden],
+.settings-backdrop[hidden],
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+body.settings-open {
+  overflow: hidden;
+}
+
+body.settings-open .settings-toggle {
   display: none;
 }
 
-.target-panel summary span,
-.target-fields > label {
-  color: rgba(247, 241, 231, 0.78);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
+.settings-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
-.target-panel summary strong {
-  color: #fffdf8;
+.settings-panel-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.settings-panel-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
   font-size: 13px;
   font-weight: 750;
 }
 
-.target-panel summary::after {
-  content: "+";
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fffdf8;
-  font-weight: 800;
+.settings-close {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
 }
 
-.target-panel[open] summary::after {
-  content: "-";
+.settings-content {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.settings-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sand-card);
+}
+
+.settings-section h3 {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-transform: uppercase;
 }
 
 .target-fields {
   display: grid;
   gap: 12px;
-  margin-top: 12px;
 }
 
-.target-panel input,
-.target-panel select {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fffdf8;
-}
-
-.target-panel option {
-  color: var(--ink);
+.target-fields > label,
+.target-grid label,
+.macro-input label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .target-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(66px, 1fr));
   gap: 10px;
-}
-
-.target-grid label,
-.macro-input label {
-  color: rgba(247, 241, 231, 0.72);
-  font-size: 12px;
 }
 
 .target-grid input {
   margin-top: 4px;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 16px;
+.settings-section input,
+.settings-section select,
+.settings-section button {
+  min-height: 42px;
 }
 
-.actions button {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #fffdf8;
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.actions button:hover {
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: none;
+.settings-actions button,
+.app-install-section button {
+  flex: 0 0 auto;
+}
+
+.settings-status {
+  min-height: 20px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .content {
   min-width: 0;
-  padding: 28px;
+  padding: 28px 84px 28px 28px;
 }
 
 .view {
@@ -664,6 +724,25 @@ textarea {
   gap: 10px;
 }
 
+.extra-slot-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.extra-slot-title strong {
+  flex: 0 0 auto;
+}
+
+.extra-slot-tag {
+  width: auto;
+  min-width: 128px;
+  max-width: 160px;
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
 .required-badge {
   padding: 4px 8px;
   border-radius: 999px;
@@ -837,13 +916,29 @@ textarea {
 }
 
 .phantom-tag-input {
+  min-width: 120px;
   max-width: 150px;
+  min-height: 34px;
+  padding: 6px 9px;
 }
 
 .tag-add-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  display: inline-grid;
+  grid-template-columns: minmax(120px, 150px) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-add-row[hidden] {
+  display: none;
+}
+
+.tag-save {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-color: var(--teal);
+  background: var(--teal);
+  color: #fffdf8;
 }
 
 .recipe-title-row input {
@@ -1193,6 +1288,29 @@ textarea {
   color: #7c3929;
 }
 
+.recipe-advice {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 4px solid var(--teal);
+}
+
+.recipe-advice strong {
+  color: var(--ink-soft);
+}
+
+.recipe-advice p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.recipe-advice-target {
+  color: var(--muted) !important;
+  font-weight: 700;
+}
+
 .ingredient-list {
   display: grid;
   gap: 8px;
@@ -1352,24 +1470,6 @@ textarea {
     box-shadow: none;
   }
 
-  .target-panel {
-    margin-top: 10px;
-    padding: 11px 12px;
-  }
-
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .actions button {
-    flex: 0 0 auto;
-    min-height: 34px;
-    padding: 7px 10px;
-  }
-
   .metrics,
   .two-col,
   .menu-layout,
@@ -1382,7 +1482,7 @@ textarea {
   }
 
   .content {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    padding: 22px 18px calc(84px + env(safe-area-inset-bottom));
   }
 }
 
@@ -1475,7 +1575,7 @@ textarea {
 
   .target-grid {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(4, minmax(62px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
   }
 
