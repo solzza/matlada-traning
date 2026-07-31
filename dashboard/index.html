@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17231f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Matlådor">
+    <title>Matlådsdashboard</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">M</span>
+          <div>
+            <h1>Matlådor</h1>
+            <p id="dataStatus">Laddar data</p>
+          </div>
+        </div>
+        <nav class="tabs" aria-label="Vyer">
+          <button class="tab active" data-view="overview" type="button">Översikt</button>
+          <button class="tab" data-view="recipes" type="button">Rätter</button>
+          <button class="tab" data-view="menus" type="button">Menyer</button>
+          <button class="tab" data-view="shopping" type="button">Inköp</button>
+          <button class="tab" data-view="log" type="button">Kostlogg</button>
+          <button class="tab" data-view="foods" type="button">Livsmedel</button>
+        </nav>
+        <div class="target-panel">
+          <label for="targetMode">Mål</label>
+          <select id="targetMode">
+            <option value="training">Träningsdag</option>
+            <option value="rest">Vilodag</option>
+          </select>
+          <div class="target-grid">
+            <label>kcal<input id="targetKcal" type="number" min="0" step="10"></label>
+            <label>protein<input id="targetProtein" type="number" min="0" step="1"></label>
+            <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
+            <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="installApp" type="button" hidden>Installera</button>
+          <button id="saveBackup" type="button">Exportera</button>
+          <button id="resetData" type="button">Återställ</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section id="overview" class="view active">
+          <div class="toolbar">
+            <div>
+              <h2>Översikt</h2>
+              <p class="muted">Dagens upplägg, mål och justeringar.</p>
+            </div>
+            <button id="logToday" type="button">Registrera dagen</button>
+          </div>
+          <div class="metrics" id="metricCards"></div>
+          <div class="layout overview-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Dagens rätter</h3>
+                <button id="addExtraSlot" type="button">Extra</button>
+              </div>
+              <div id="dailyPlan" class="plan-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Tillfälligt idag</h3>
+                <button id="addTemporaryItem" type="button">Lägg till</button>
+              </div>
+              <div id="temporaryItems" class="temporary-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Justeringar</h3>
+              </div>
+              <div id="suggestions" class="suggestion-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="recipes" class="view">
+          <div class="toolbar">
+            <div>
+              <h2>Rätter</h2>
+              <p class="muted">Ingredienser, gram och makro per rätt.</p>
+            </div>
+            <button id="addRecipe" type="button">Ny rätt</button>
+          </div>
+          <div class="filter-row">
+            <label for="recipeTagFilter">Tagg</label>
+            <select id="recipeTagFilter"></select>
+          </div>
+          <div class="recipe-grid" id="recipeGrid"></div>
+        </section>
+
+        <section id="menus" class="view">
+          <div class="toolbar">
+            <div>
+              <h2>Menyer</h2>
+              <p class="muted">Bygg menyer av kopior av dina rätter.</p>
+            </div>
+            <button id="addMenu" type="button">Ny meny</button>
+          </div>
+          <div class="layout menu-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Menylista</h3>
+              </div>
+              <div id="menuList" class="plan-list"></div>
+            </section>
+            <section class="panel">
+              <div id="menuDetail"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="shopping" class="view">
+          <div class="toolbar">
+            <div>
+              <h2>Inköp</h2>
+              <p class="muted">Summerat från antal lådor per rätt.</p>
+            </div>
+          </div>
+          <div class="layout two-col shopping-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Välj inköp</h3>
+              </div>
+              <div id="shoppingSelectors" class="plan-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Inköpslista</h3>
+              </div>
+              <div class="shopping-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Vara</th>
+                      <th>Gram</th>
+                      <th>Praktiskt</th>
+                    </tr>
+                  </thead>
+                  <tbody id="shoppingRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="log" class="view">
+          <div class="toolbar">
+            <div>
+              <h2>Kostlogg</h2>
+              <p class="muted">Registrerade dagar och makro över tid.</p>
+            </div>
+          </div>
+          <div class="layout two-col">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Historik</h3>
+              </div>
+              <div id="logEntries" class="log-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Coach</h3>
+              </div>
+              <div id="logSummary" class="suggestion-list"></div>
+              <div id="coachChat" class="coach-chat"></div>
+              <div class="coach-input-row">
+                <input id="coachInput" type="text" placeholder="Fråga coachen om veckan, variation eller makro">
+                <button id="sendCoachMessage" type="button">Skicka</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="foods" class="view">
+          <div class="toolbar">
+            <div>
+              <h2>Livsmedel</h2>
+              <p class="muted">Sök i databasen och egna produkter.</p>
+            </div>
+            <button id="addFood" type="button">Nytt livsmedel</button>
+          </div>
+          <div class="search-row">
+            <input id="foodSearch" type="search" placeholder="Sök livsmedel">
+          </div>
+          <div class="food-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Namn</th>
+                  <th>kcal</th>
+                  <th>Protein</th>
+                  <th>Kolh</th>
+                  <th>Fett</th>
+                  <th>Källa</th>
+                </tr>
+              </thead>
+              <tbody id="foodRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="ingredientTemplate">
+      <div class="ingredient-row">
+        <input class="ingredient-name" list="foodOptions" placeholder="Livsmedel">
+        <input class="ingredient-grams" type="number" min="0" step="1" placeholder="g">
+        <button class="remove-ingredient" type="button" title="Ta bort">×</button>
+      </div>
+    </template>
+    <datalist id="foodOptions"></datalist>
+    <datalist id="tagOptions"></datalist>
+    <div id="foodSuggest" class="food-suggest" hidden></div>
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
