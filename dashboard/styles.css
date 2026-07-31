@@ -215,25 +215,63 @@ textarea {
   box-shadow: 0 0 0 3px rgba(240, 180, 94, 0.18);
 }
 
-.target-panel,
-.actions {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-}
-
 .target-panel {
+  margin-top: 16px;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
 }
 
-.target-panel > label {
+.target-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  color: #fffdf8;
+  cursor: pointer;
+  list-style: none;
+}
+
+.target-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.target-panel summary span,
+.target-fields > label {
   color: rgba(247, 241, 231, 0.78);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.target-panel summary strong {
+  color: #fffdf8;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.target-panel summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fffdf8;
+  font-weight: 800;
+}
+
+.target-panel[open] summary::after {
+  content: "-";
+}
+
+.target-fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .target-panel input,
@@ -264,7 +302,10 @@ textarea {
 }
 
 .actions {
+  display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .actions button {
@@ -1255,12 +1296,78 @@ textarea {
   .sidebar {
     position: static;
     height: auto;
+    padding: 16px 18px 14px;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: visible;
+  }
+
+  .brand {
+    margin-bottom: 12px;
   }
 
   .tabs {
-    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(23, 35, 31, 0.14);
+    background: rgba(255, 253, 248, 0.96);
+    box-shadow: 0 -10px 24px rgba(55, 42, 24, 0.12);
+    backdrop-filter: blur(12px);
+  }
+
+  .tab {
+    min-height: 48px;
+    padding: 7px 4px;
+    border: 0;
+    border-radius: 8px;
+    color: var(--ink-soft);
+    font-size: 0;
+    text-align: center;
+  }
+
+  .tab::after {
+    content: attr(data-short);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .tab:hover {
+    background: var(--teal-soft);
+    color: var(--teal-deep);
+    transform: none;
+  }
+
+  .tab.active {
+    background: var(--teal);
+    border-color: transparent;
+    color: #fffdf8;
+    box-shadow: none;
+  }
+
+  .target-panel {
+    margin-top: 10px;
+    padding: 11px 12px;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .actions button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 10px;
   }
 
   .metrics,
@@ -1273,6 +1380,10 @@ textarea {
   .overview-layout .panel:last-child {
     grid-column: auto;
   }
+
+  .content {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
 }
 
 @media (max-width: 560px) {
@@ -1281,28 +1392,127 @@ textarea {
     padding: 16px;
   }
 
-  .tabs,
-  .filter-row,
-  .add-menu-recipe,
-  .coach-input-row,
-  .log-edit-grid,
-  .tag-add-row,
-  .meal-slot-controls,
-  .shopping-choice,
-  .mini-meters,
-  .target-grid,
-  .actions,
-  .temporary-fields,
-  .ingredient-row {
-    grid-template-columns: 1fr;
+  .content {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
   .toolbar {
     display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
   }
 
   .toolbar h2 {
-    font-size: 26px;
+    font-size: 24px;
+  }
+
+  .toolbar button {
+    justify-self: start;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .metric-card {
+    min-height: 0;
+    padding: 10px 10px 10px 13px;
+  }
+
+  .metric-card::after {
+    display: none;
+  }
+
+  .metric-card::before {
+    width: 4px;
+  }
+
+  .metric-head {
+    align-items: flex-start;
+  }
+
+  .metric-head span:first-child {
+    font-size: 11px;
+  }
+
+  .metric-percent,
+  .metric-delta {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .metric-card strong {
+    font-size: 20px;
+    margin: 4px 0;
+  }
+
+  .metric-card small {
+    font-size: 11px;
+  }
+
+  .metric-meta {
+    display: grid;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .bar {
+    height: 5px;
+  }
+
+  .target-fields {
+    grid-template-columns: minmax(150px, 0.56fr) minmax(120px, 1fr);
+    align-items: end;
+    gap: 10px;
+  }
+
+  .target-fields > label {
+    grid-column: 1 / -1;
+  }
+
+  .target-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(62px, 1fr));
+    gap: 8px;
+  }
+
+  .filter-row {
+    grid-template-columns: auto minmax(150px, 220px);
+  }
+
+  .meal-slot-controls,
+  .temporary-fields {
+    grid-template-columns: minmax(0, 1fr) 74px;
+  }
+
+  .ingredient-row {
+    grid-template-columns: minmax(0, 1fr) 76px 38px;
+  }
+
+  .shopping-choice {
+    grid-template-columns: 22px minmax(0, 1fr) 70px;
+  }
+
+  .log-edit-grid,
+  .mini-meters,
+  .mini-meters.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tag-add-row,
+  .coach-input-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .add-menu-recipe {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .add-menu-recipe span {
+    grid-column: 1 / -1;
   }
 
   .recipe-grid {

@@ -23,26 +23,32 @@
           </div>
         </div>
         <nav class="tabs" aria-label="Vyer">
-          <button class="tab active" data-view="overview" type="button">Översikt</button>
-          <button class="tab" data-view="recipes" type="button">Rätter</button>
-          <button class="tab" data-view="menus" type="button">Menyer</button>
-          <button class="tab" data-view="shopping" type="button">Inköp</button>
-          <button class="tab" data-view="log" type="button">Kostlogg</button>
-          <button class="tab" data-view="foods" type="button">Livsmedel</button>
+          <button class="tab active" data-view="overview" data-short="Idag" type="button">Översikt</button>
+          <button class="tab" data-view="recipes" data-short="Rätter" type="button">Rätter</button>
+          <button class="tab" data-view="menus" data-short="Menyer" type="button">Menyer</button>
+          <button class="tab" data-view="shopping" data-short="Inköp" type="button">Inköp</button>
+          <button class="tab" data-view="log" data-short="Logg" type="button">Kostlogg</button>
+          <button class="tab" data-view="foods" data-short="Mat" type="button">Livsmedel</button>
         </nav>
-        <div class="target-panel">
-          <label for="targetMode">Mål</label>
-          <select id="targetMode">
-            <option value="training">Träningsdag</option>
-            <option value="rest">Vilodag</option>
-          </select>
-          <div class="target-grid">
-            <label>kcal<input id="targetKcal" type="number" min="0" step="10"></label>
-            <label>protein<input id="targetProtein" type="number" min="0" step="1"></label>
-            <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
-            <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
+        <details class="target-panel">
+          <summary>
+            <span>Mål</span>
+            <strong id="targetSummary">Träningsdag</strong>
+          </summary>
+          <div class="target-fields">
+            <label for="targetMode">Dagtyp</label>
+            <select id="targetMode">
+              <option value="training">Träningsdag</option>
+              <option value="rest">Vilodag</option>
+            </select>
+            <div class="target-grid">
+              <label>kcal<input id="targetKcal" type="number" min="0" step="10"></label>
+              <label>protein<input id="targetProtein" type="number" min="0" step="1"></label>
+              <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
+              <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
+            </div>
           </div>
-        </div>
+        </details>
         <div class="actions">
           <button id="installApp" type="button" hidden>Installera</button>
           <button id="saveBackup" type="button">Exportera</button>

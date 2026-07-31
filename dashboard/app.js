@@ -49,6 +49,7 @@ const els = {
   dataStatus: document.querySelector("#dataStatus"),
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
+  targetSummary: document.querySelector("#targetSummary"),
   targetMode: document.querySelector("#targetMode"),
   targetKcal: document.querySelector("#targetKcal"),
   targetProtein: document.querySelector("#targetProtein"),
@@ -537,6 +538,10 @@ function renderTargets() {
   els.targetProtein.value = target.protein;
   els.targetCarbs.value = target.carbs;
   els.targetFat.value = target.fat;
+  if (els.targetSummary) {
+    const modeLabel = els.targetMode.selectedOptions[0]?.textContent || "Mål";
+    els.targetSummary.textContent = `${modeLabel} · ${format(target.kcal)} kcal`;
+  }
 }
 
 function renderOverview(options = {}) {
@@ -1383,6 +1388,7 @@ function updateTargetInputs() {
   target.carbs = number(els.targetCarbs.value);
   target.fat = number(els.targetFat.value);
   saveState();
+  renderTargets();
   renderOverview();
 }
 
@@ -1418,6 +1424,9 @@ function bindEvents() {
       els.views.forEach((view) => view.classList.remove("active"));
       tab.classList.add("active");
       document.querySelector(`#${tab.dataset.view}`).classList.add("active");
+      if (window.matchMedia("(max-width: 960px)").matches) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     });
   });
 
