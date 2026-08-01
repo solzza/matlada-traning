@@ -1,4 +1,4 @@
-const CACHE_NAME = "matladsdashboard-v3";
+const CACHE_NAME = "matladsdashboard-v7";
 const APP_SHELL = [
   "./",
   "./index.html",

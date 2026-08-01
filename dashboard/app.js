@@ -1,4 +1,6 @@
 const STORE_KEY = "matdash-state-v1";
+const AI_CONFIG_KEY = "matdash-ai-config-v1";
+const DEFAULT_WATER_GOAL_ML = 2500;
 
 const macroKeys = [
   ["kcal", "kcal"],
@@ -6,6 +8,8 @@ const macroKeys = [
   ["carbs", "kolh"],
   ["fat", "fett"],
 ];
+
+const waterQuickAdds = [250, 330, 500];
 
 const requiredDailySlots = [
   { id: "frukost", label: "Frukost", tag: "Frukost" },
@@ -72,9 +76,14 @@ const initialData = window.MATDASH_DATA || {
   coachMessages: [],
   menus: [],
   temporaryItems: [],
+  water: {
+    goalMl: DEFAULT_WATER_GOAL_ML,
+    days: {},
+  },
 };
 
 let state = loadState();
+let aiConfig = loadAiConfig();
 let activeTarget = "training";
 let activeRecipeTag = "all";
 let selectedMenuId = "";
@@ -83,6 +92,10 @@ let expandedMenuItemId = "";
 let editingLogId = "";
 let activeFoodInput = null;
 let deferredInstallPrompt = null;
+let pendingTemporaryImage = null;
+let temporaryAiSuggestion = null;
+let temporaryAiStatus = "";
+let temporaryAiBusy = false;
 
 const els = {
   settingsToggle: document.querySelector("#settingsToggle"),
@@ -98,8 +111,16 @@ const els = {
   targetProtein: document.querySelector("#targetProtein"),
   targetCarbs: document.querySelector("#targetCarbs"),
   targetFat: document.querySelector("#targetFat"),
+  waterGoal: document.querySelector("#waterGoal"),
   metricCards: document.querySelector("#metricCards"),
+  waterTracker: document.querySelector("#waterTracker"),
   dailyPlan: document.querySelector("#dailyPlan"),
+  temporaryAiInput: document.querySelector("#temporaryAiInput"),
+  temporaryImageInput: document.querySelector("#temporaryImageInput"),
+  attachTemporaryImage: document.querySelector("#attachTemporaryImage"),
+  analyzeTemporaryItem: document.querySelector("#analyzeTemporaryItem"),
+  temporaryAiStatus: document.querySelector("#temporaryAiStatus"),
+  temporaryAiSuggestion: document.querySelector("#temporaryAiSuggestion"),
   temporaryItems: document.querySelector("#temporaryItems"),
   suggestions: document.querySelector("#suggestions"),
   recipeGrid: document.querySelector("#recipeGrid"),
@@ -132,6 +153,14 @@ const els = {
   importBackup: document.querySelector("#importBackup"),
   backupFile: document.querySelector("#backupFile"),
   settingsStatus: document.querySelector("#settingsStatus"),
+  supabaseUrl: document.querySelector("#supabaseUrl"),
+  supabaseAnonKey: document.querySelector("#supabaseAnonKey"),
+  supabaseEmail: document.querySelector("#supabaseEmail"),
+  supabasePassword: document.querySelector("#supabasePassword"),
+  saveAiSettings: document.querySelector("#saveAiSettings"),
+  loginAi: document.querySelector("#loginAi"),
+  logoutAi: document.querySelector("#logoutAi"),
+  aiSettingsStatus: document.querySelector("#aiSettingsStatus"),
 };
 
 function clone(value) {
@@ -161,6 +190,7 @@ function loadState() {
     coachMessages: [],
     menus: [],
     temporaryItems: [],
+    water: clone(initialData.water || { goalMl: DEFAULT_WATER_GOAL_ML, days: {} }),
     dailyPlan: initialData.recipes.map((recipe) => ({
       recipeId: recipe.id,
       servings: 1,
@@ -202,6 +232,7 @@ function normalizeState(raw) {
     carbs100: item.carbs100,
     fat100: item.fat100,
   }));
+  const water = normalizeWater(raw.water);
   const dailySlots = normalizeDailySlots(raw.dailySlots, recipes, raw.dailyPlan);
   const extraSlots = (raw.extraSlots || []).map((slot) => ({
     id: slot.id || makeId("extra"),
@@ -229,15 +260,81 @@ function normalizeState(raw) {
       macros: entry.macros || { kcal: 0, protein: 0, carbs: 0, fat: 0 },
       meals: entry.meals || [],
       temporaryItems: entry.temporaryItems || [],
+      waterMl: number(entry.waterMl),
+      waterGoalMl: number(entry.waterGoalMl, water.goalMl),
     })),
     menus,
     temporaryItems,
-    coachMessages: raw.coachMessages || [],
+    coachMessages: normalizeCoachMessages(raw.coachMessages),
+    water,
+  };
+}
+
+function normalizeCoachMessages(messages = []) {
+  return (Array.isArray(messages) ? messages : []).map((message) => ({
+    id: message.id || makeId("coach"),
+    role: message.role === "user" ? "user" : "coach",
+    text: String(message.text || ""),
+    imageName: message.imageName || "",
+    pending: Boolean(message.pending),
+    error: Boolean(message.error),
+    createdAt: message.createdAt || new Date().toISOString(),
+    suggestion: normalizeAiSuggestion(message.suggestion),
+  }));
+}
+
+function normalizeAiSuggestion(suggestion) {
+  if (!suggestion || !suggestion.shouldAdd) return null;
+  return {
+    shouldAdd: true,
+    name: String(suggestion.name || "Uppskattad måltid"),
+    grams: Math.max(0, number(suggestion.grams)),
+    kcal: Math.max(0, number(suggestion.kcal)),
+    protein: Math.max(0, number(suggestion.protein)),
+    carbs: Math.max(0, number(suggestion.carbs)),
+    fat: Math.max(0, number(suggestion.fat)),
+    confidence: ["low", "medium", "high"].includes(suggestion.confidence) ? suggestion.confidence : "medium",
+    note: String(suggestion.note || ""),
+    accepted: Boolean(suggestion.accepted),
+    dismissed: Boolean(suggestion.dismissed),
   };
 }
 
 function saveState() {
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
+}
+
+function loadAiConfig() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || "{}");
+    return {
+      supabaseUrl: String(parsed.supabaseUrl || ""),
+      anonKey: String(parsed.anonKey || ""),
+      accessToken: String(parsed.accessToken || ""),
+      refreshToken: String(parsed.refreshToken || ""),
+      userEmail: String(parsed.userEmail || ""),
+      expiresAt: number(parsed.expiresAt),
+    };
+  } catch {
+    localStorage.removeItem(AI_CONFIG_KEY);
+    return { supabaseUrl: "", anonKey: "", accessToken: "", refreshToken: "", userEmail: "", expiresAt: 0 };
+  }
+}
+
+function saveAiConfig() {
+  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(aiConfig));
+}
+
+function getCleanSupabaseUrl() {
+  return String(aiConfig.supabaseUrl || "").replace(/\/+$/, "");
+}
+
+function isAiConfigured() {
+  return Boolean(getCleanSupabaseUrl() && aiConfig.anonKey);
+}
+
+function isAiSignedIn() {
+  return Boolean(isAiConfigured() && aiConfig.accessToken);
 }
 
 function makeId(prefix) {
@@ -259,6 +356,81 @@ function format(value, digits = 0) {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
+}
+
+function formatDateKey(date = new Date()) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function formatWaterVolume(ml) {
+  const value = number(ml);
+  if (value >= 1000) {
+    return `${format(value / 1000, value % 1000 === 0 ? 1 : 2)} l`;
+  }
+  return `${format(value)} ml`;
+}
+
+function normalizeWater(rawWater = {}) {
+  rawWater = rawWater || {};
+  const days = {};
+  Object.entries(rawWater.days || {}).forEach(([date, entry]) => {
+    const amount = typeof entry === "number" ? entry : entry?.ml;
+    days[date] = {
+      ml: Math.max(0, number(amount)),
+      updatedAt: typeof entry === "object" && entry ? entry.updatedAt || "" : "",
+    };
+  });
+
+  return {
+    goalMl: Math.max(0, number(rawWater.goalMl, DEFAULT_WATER_GOAL_ML)) || DEFAULT_WATER_GOAL_ML,
+    days,
+  };
+}
+
+function getWaterGoal() {
+  state.water = normalizeWater(state.water);
+  return state.water.goalMl;
+}
+
+function getWaterEntry(date = formatDateKey()) {
+  state.water = normalizeWater(state.water);
+  if (!state.water.days[date]) {
+    state.water.days[date] = { ml: 0, updatedAt: "" };
+  }
+  return state.water.days[date];
+}
+
+function getTodayWaterMl() {
+  return number(getWaterEntry().ml);
+}
+
+function syncTodayWaterLog() {
+  const today = formatDateKey();
+  const entry = state.logEntries.find((item) => item.date === today);
+  if (!entry) return;
+  entry.waterMl = getTodayWaterMl();
+  entry.waterGoalMl = getWaterGoal();
+}
+
+function addWaterMl(amount) {
+  const entry = getWaterEntry();
+  entry.ml = Math.max(0, number(entry.ml) + number(amount));
+  entry.updatedAt = new Date().toISOString();
+  syncTodayWaterLog();
+  saveState();
+  renderWaterTracker();
+  renderLog();
+}
+
+function resetTodayWater() {
+  const entry = getWaterEntry();
+  entry.ml = 0;
+  entry.updatedAt = new Date().toISOString();
+  syncTodayWaterLog();
+  saveState();
+  renderWaterTracker();
+  renderLog();
 }
 
 function findFood(name) {
@@ -655,7 +827,9 @@ function render() {
   renderStatus();
   renderFoodOptions();
   renderTargets();
+  renderAiSettings();
   renderOverview();
+  renderWaterTracker();
   renderRecipes();
   renderMenus();
   renderShopping();
@@ -689,10 +863,68 @@ function renderTargets() {
   els.targetProtein.value = target.protein;
   els.targetCarbs.value = target.carbs;
   els.targetFat.value = target.fat;
+  if (els.waterGoal) {
+    els.waterGoal.value = getWaterGoal();
+  }
   if (els.targetSummary) {
     const modeLabel = els.targetMode.selectedOptions[0]?.textContent || "Mål";
     els.targetSummary.textContent = `${modeLabel} · ${format(target.kcal)} kcal`;
   }
+}
+
+function renderAiSettings() {
+  if (!els.supabaseUrl || !els.supabaseAnonKey || !els.aiSettingsStatus) return;
+  els.supabaseUrl.value = aiConfig.supabaseUrl;
+  els.supabaseAnonKey.value = aiConfig.anonKey;
+  if (els.supabaseEmail) els.supabaseEmail.value = aiConfig.userEmail;
+  if (els.loginAi) els.loginAi.disabled = !isAiConfigured();
+  if (els.logoutAi) els.logoutAi.disabled = !aiConfig.accessToken;
+  if (aiConfig.accessToken) {
+    els.aiSettingsStatus.textContent = `Inloggad som ${aiConfig.userEmail || "Supabase-användare"}.`;
+  } else if (isAiConfigured()) {
+    els.aiSettingsStatus.textContent = "Supabase är sparat. Logga in för AI-coachen.";
+  } else {
+    els.aiSettingsStatus.textContent = "Fyll i Supabase URL och publishable key.";
+  }
+}
+
+function renderWaterTracker() {
+  if (!els.waterTracker) return;
+  const goal = getWaterGoal();
+  const amount = getTodayWaterMl();
+  const ratio = goal ? amount / goal : 0;
+  const progress = Math.min(ratio * 100, 100);
+  const remaining = Math.max(goal - amount, 0);
+  const statusText = amount >= goal ? "Målet nått" : `${formatWaterVolume(remaining)} kvar`;
+  const quickButtons = waterQuickAdds
+    .map((ml) => `<button class="water-add" type="button" data-water-add="${ml}">+${format(ml)} ml</button>`)
+    .join("");
+
+  els.waterTracker.innerHTML = `
+    <div class="panel-head water-panel-head">
+      <div>
+        <h3>Vatten</h3>
+        <p>${statusText}</p>
+      </div>
+      <span class="water-status ${amount >= goal ? "ok" : ""}">${format(Math.min(ratio * 100, 999))}%</span>
+    </div>
+    <div class="water-card">
+      <div class="water-progress" style="--water-progress: ${progress}%">
+        <div class="water-progress-inner">
+          <strong>${formatWaterVolume(amount)}</strong>
+          <span>av ${formatWaterVolume(goal)}</span>
+        </div>
+      </div>
+      <div class="water-actions">
+        <div class="water-quick-actions">${quickButtons}</div>
+        <div class="water-custom-row">
+          <input id="waterCustomMl" type="number" min="0" step="50" value="250" aria-label="Vatten i milliliter">
+          <button class="water-custom-add" type="button" data-water-custom>Lägg till</button>
+          <button class="water-reset" type="button" data-water-reset>Nollställ</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderOverview(options = {}) {
@@ -737,6 +969,7 @@ function renderOverview(options = {}) {
     ...state.dailySlots.map((slot) => renderDailySlot(slot, true)),
     ...state.extraSlots.map((slot) => renderDailySlot(slot, false)),
   ].join("");
+  renderTemporaryAiAdd();
 
   if (renderTemporary) {
     els.temporaryItems.innerHTML = state.temporaryItems.length
@@ -1437,7 +1670,7 @@ function updateFoodBackedField(input, forceRender = false) {
 }
 
 function logToday() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateKey();
   const macros = getDailyMacros();
   const meals = [...state.dailySlots, ...state.extraSlots].map((slot) => {
     const recipe = state.recipes.find((item) => item.id === slot.recipeId);
@@ -1456,6 +1689,8 @@ function logToday() {
     macros,
     meals,
     temporaryItems: clone(state.temporaryItems),
+    waterMl: getTodayWaterMl(),
+    waterGoalMl: getWaterGoal(),
   };
   state.logEntries = state.logEntries.filter((item) => item.date !== today);
   state.logEntries.unshift(entry);
@@ -1476,18 +1711,21 @@ function renderLog() {
     return;
   }
   const avg = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  let waterAvg = 0;
   recent.forEach((entry) => {
     macroKeys.forEach(([key]) => {
       avg[key] += number(entry.macros[key]);
     });
+    waterAvg += number(entry.waterMl);
   });
   macroKeys.forEach(([key]) => {
     avg[key] /= recent.length;
   });
+  waterAvg /= recent.length;
   els.logSummary.innerHTML = `
     <div class="suggestion">
       <strong>Snitt senaste ${recent.length} dagar</strong>
-      <span>${format(avg.kcal)} kcal · ${format(avg.protein, 1)} g protein · ${format(avg.carbs, 1)} g kolh · ${format(avg.fat, 1)} g fett</span>
+      <span>${format(avg.kcal)} kcal · ${format(avg.protein, 1)} g protein · ${format(avg.carbs, 1)} g kolh · ${format(avg.fat, 1)} g fett · ${formatWaterVolume(waterAvg)} vatten</span>
     </div>
     ${renderMiniMeters(avg)}
     ${renderCoachInsights(entries, avg)}
@@ -1505,6 +1743,7 @@ function renderLogEntry(entry) {
           <button class="remove-ingredient" type="button" data-delete-log="${entry.id}" title="Ta bort">×</button>
         </div>
         ${renderMiniMeters(entry.macros)}
+        <div class="water-log-line">Vatten: ${formatWaterVolume(entry.waterMl)} / ${formatWaterVolume(entry.waterGoalMl || DEFAULT_WATER_GOAL_ML)}</div>
         <div class="muted">${entry.meals.map((meal) => `${meal.label}: ${meal.recipeName || "tom"}`).join(" · ")}</div>
       </div>
     `;
@@ -1521,6 +1760,8 @@ function renderLogEntry(entry) {
         <label>protein<input type="number" min="0" step="1" value="${number(entry.macros.protein)}" data-log-macro="${entry.id}:protein"></label>
         <label>kolh<input type="number" min="0" step="1" value="${number(entry.macros.carbs)}" data-log-macro="${entry.id}:carbs"></label>
         <label>fett<input type="number" min="0" step="1" value="${number(entry.macros.fat)}" data-log-macro="${entry.id}:fat"></label>
+        <label>vatten<input type="number" min="0" step="50" value="${number(entry.waterMl)}" data-log-water="${entry.id}:waterMl"></label>
+        <label>vattenmål<input type="number" min="0" step="50" value="${number(entry.waterGoalMl, DEFAULT_WATER_GOAL_ML)}" data-log-water="${entry.id}:waterGoalMl"></label>
       </div>
       <textarea data-log-field="${entry.id}:notes" placeholder="Noteringar, hunger, energi, träning">${escapeHtml(entry.notes || "")}</textarea>
       <div class="muted">${entry.meals.map((meal) => `${meal.label}: ${meal.recipeName || "tom"}`).join(" · ")}</div>
@@ -1627,6 +1868,396 @@ function buildCoachReply(question) {
   return `${insights[0].title}: ${insights[0].body} Snittet senaste ${recent.length} dagar är ${format(avg.kcal)} kcal, ${format(avg.protein, 1)} g protein, ${format(avg.carbs, 1)} g kolh och ${format(avg.fat, 1)} g fett.`;
 }
 
+function renderCoachChat() {
+  const messages = state.coachMessages || [];
+  els.coachChat.innerHTML = messages.length
+    ? messages.map((message) => {
+        const suggestion = message.suggestion && !message.suggestion.accepted && !message.suggestion.dismissed
+          ? renderCoachSuggestion(message.id, message.suggestion)
+          : "";
+        const imageText = message.imageName ? `<small>Bild: ${escapeHtml(message.imageName)}</small>` : "";
+        const stateClass = message.pending ? "pending" : message.error ? "error" : "";
+        return `
+          <div class="coach-message ${message.role} ${stateClass}">
+            <div>${escapeHtml(message.text)}</div>
+            ${imageText}
+            ${suggestion}
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-state">Fråga coachen om veckan, variation eller makro.</div>`;
+}
+
+function renderCoachSuggestion(messageId, item) {
+  return `
+    <div class="coach-suggestion">
+      <strong>${escapeHtml(item.name)}</strong>
+      <span>${format(item.grams)} g · ${format(item.kcal)} kcal · ${format(item.protein, 1)} g protein · ${format(item.carbs, 1)} g kolh · ${format(item.fat, 1)} g fett</span>
+      ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
+      <div class="coach-suggestion-actions">
+        <button type="button" data-accept-ai-food="${messageId}">Lägg till</button>
+        <button type="button" data-dismiss-ai-food="${messageId}">Avbryt</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderTemporaryAiAdd() {
+  if (!els.temporaryAiStatus || !els.temporaryAiSuggestion) return;
+  const statusParts = [];
+  if (pendingTemporaryImage) statusParts.push(`Bild vald: ${pendingTemporaryImage.name}`);
+  if (temporaryAiStatus) statusParts.push(temporaryAiStatus);
+  els.temporaryAiStatus.textContent = statusParts.join(" ");
+  els.temporaryAiSuggestion.innerHTML = temporaryAiSuggestion ? renderTemporaryAiSuggestion(temporaryAiSuggestion) : "";
+  if (els.analyzeTemporaryItem) {
+    els.analyzeTemporaryItem.disabled = temporaryAiBusy;
+    els.analyzeTemporaryItem.textContent = temporaryAiBusy ? "Analyserar" : "Lägg till";
+  }
+}
+
+function renderTemporaryAiSuggestion(item) {
+  return `
+    <div class="coach-suggestion temporary-ai-suggestion">
+      <strong>${escapeHtml(item.name)}</strong>
+      <span>${format(item.grams)} g · ${format(item.kcal)} kcal · ${format(item.protein, 1)} g protein · ${format(item.carbs, 1)} g kolh · ${format(item.fat, 1)} g fett</span>
+      ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
+      <div class="coach-suggestion-actions">
+        <button type="button" data-accept-temporary-ai>Lägg till i dag</button>
+        <button type="button" data-dismiss-temporary-ai>Avbryt</button>
+      </div>
+    </div>
+  `;
+}
+
+async function sendCoachMessage() {
+  const text = els.coachInput.value.trim();
+  if (!text) return;
+  const pendingId = makeId("coach");
+  state.coachMessages.push({
+    id: makeId("coach"),
+    role: "user",
+    text,
+    imageName: "",
+    createdAt: new Date().toISOString(),
+  });
+  state.coachMessages.push({
+    id: pendingId,
+    role: "coach",
+    text: "Tänker...",
+    pending: true,
+    createdAt: new Date().toISOString(),
+  });
+  els.coachInput.value = "";
+  saveState();
+  renderCoachChat();
+
+  const pendingMessage = state.coachMessages.find((message) => message.id === pendingId);
+  try {
+    const response = await requestAiCoach(text, null);
+    if (pendingMessage) {
+      pendingMessage.text = response.reply;
+      pendingMessage.pending = false;
+      pendingMessage.suggestion = normalizeAiSuggestion(response.temporaryItem);
+    }
+  } catch (error) {
+    if (pendingMessage) {
+      pendingMessage.text = `${buildCoachReply(text)}\n\nAI är inte tillgänglig just nu: ${error.message}`;
+      pendingMessage.pending = false;
+      pendingMessage.error = true;
+    }
+  }
+  saveState();
+  renderCoachChat();
+}
+
+async function requestAiCoach(text, image) {
+  if (!isAiConfigured()) {
+    throw new Error("lägg in Supabase URL och publishable key i inställningar.");
+  }
+  if (!isAiSignedIn()) {
+    throw new Error("logga in i Supabase i inställningar.");
+  }
+  await refreshAiSessionIfNeeded();
+
+  const response = await fetch(`${getCleanSupabaseUrl()}/functions/v1/ai-coach`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": aiConfig.anonKey,
+      "Authorization": `Bearer ${aiConfig.accessToken}`,
+    },
+    body: JSON.stringify({
+      message: text,
+      imageDataUrl: image?.dataUrl || "",
+      day: buildAiDayContext(),
+      foodHints: getFoodMatches(text, 10).map((food) => ({
+        name: food.name,
+        kcal: food.kcal,
+        protein: food.protein,
+        carbs: food.carbs,
+        fat: food.fat,
+        source: food.source,
+      })),
+      messages: state.coachMessages.slice(-10).map((message) => ({
+        role: message.role,
+        text: message.text,
+      })),
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || "AI-funktionen svarade inte.");
+  }
+  return body;
+}
+
+function buildAiDayContext() {
+  const total = getDailyMacros();
+  const target = state.targets[activeTarget];
+  return {
+    targetMode: activeTarget,
+    target,
+    total,
+    water: {
+      ml: getTodayWaterMl(),
+      goalMl: getWaterGoal(),
+    },
+    dailySlots: [...state.dailySlots, ...state.extraSlots].map((slot) => {
+      const recipe = state.recipes.find((item) => item.id === slot.recipeId);
+      return {
+        label: slot.label,
+        tag: slot.tag,
+        recipeName: recipe?.name || "",
+        servings: number(slot.servings, 1),
+        macros: recipe ? getRecipeMacros(recipe, slot.servings) : null,
+      };
+    }),
+    temporaryItems: state.temporaryItems.map((item) => ({
+      name: item.name,
+      grams: number(item.grams),
+      macros: getIngredientMacros(item),
+    })),
+    recentLog: [...(state.logEntries || [])]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7)
+      .map((entry) => ({
+        date: entry.date,
+        macros: entry.macros,
+        waterMl: entry.waterMl,
+        meals: entry.meals,
+      })),
+  };
+}
+
+async function refreshAiSessionIfNeeded() {
+  if (!aiConfig.refreshToken || aiConfig.expiresAt - Date.now() > 60000) return;
+  const response = await fetch(`${getCleanSupabaseUrl()}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": aiConfig.anonKey,
+    },
+    body: JSON.stringify({ refresh_token: aiConfig.refreshToken }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    aiConfig.accessToken = "";
+    aiConfig.refreshToken = "";
+    saveAiConfig();
+    renderAiSettings();
+    throw new Error("sessionen har gått ut. Logga in igen.");
+  }
+  applySupabaseSession(body);
+}
+
+function applySupabaseSession(body) {
+  aiConfig.accessToken = body.access_token || "";
+  aiConfig.refreshToken = body.refresh_token || aiConfig.refreshToken || "";
+  aiConfig.userEmail = body.user?.email || aiConfig.userEmail || "";
+  aiConfig.expiresAt = body.expires_at ? body.expires_at * 1000 : Date.now() + number(body.expires_in, 3600) * 1000;
+  saveAiConfig();
+  renderAiSettings();
+}
+
+function saveAiSettingsFromInputs() {
+  aiConfig.supabaseUrl = els.supabaseUrl.value.trim();
+  aiConfig.anonKey = els.supabaseAnonKey.value.trim();
+  aiConfig.userEmail = els.supabaseEmail?.value.trim() || aiConfig.userEmail || "";
+  saveAiConfig();
+  renderAiSettings();
+  showAiSettingsStatus("AI-inställningar sparade.");
+}
+
+async function loginAi() {
+  const email = els.supabaseEmail.value.trim();
+  const password = els.supabasePassword.value;
+  aiConfig.supabaseUrl = els.supabaseUrl.value.trim();
+  aiConfig.anonKey = els.supabaseAnonKey.value.trim();
+  aiConfig.userEmail = email;
+  saveAiConfig();
+  if (!isAiConfigured() || !email || !password) {
+    renderAiSettings();
+    showAiSettingsStatus("Fyll i Supabase URL, publishable key, e-post och lösenord.");
+    return;
+  }
+  showAiSettingsStatus("Loggar in...");
+  try {
+    const response = await fetch(`${getCleanSupabaseUrl()}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": aiConfig.anonKey,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error_description || body.msg || body.error || "Kunde inte logga in.");
+    applySupabaseSession(body);
+    els.supabasePassword.value = "";
+    showAiSettingsStatus(`Inloggad som ${aiConfig.userEmail || email}.`);
+  } catch (error) {
+    showAiSettingsStatus(error.message);
+  }
+}
+
+async function logoutAi() {
+  if (aiConfig.accessToken && isAiConfigured()) {
+    await fetch(`${getCleanSupabaseUrl()}/auth/v1/logout`, {
+      method: "POST",
+      headers: {
+        "apikey": aiConfig.anonKey,
+        "Authorization": `Bearer ${aiConfig.accessToken}`,
+      },
+    }).catch(() => null);
+  }
+  aiConfig.accessToken = "";
+  aiConfig.refreshToken = "";
+  aiConfig.expiresAt = 0;
+  saveAiConfig();
+  renderAiSettings();
+  showAiSettingsStatus("Utloggad.");
+}
+
+function showAiSettingsStatus(message) {
+  if (!els.aiSettingsStatus) return;
+  els.aiSettingsStatus.textContent = message;
+}
+
+async function selectTemporaryImage(file) {
+  if (!file) return;
+  pendingTemporaryImage = {
+    name: file.name || "bild",
+    dataUrl: await resizeImageToDataUrl(file, 1200),
+  };
+  temporaryAiStatus = "";
+  renderTemporaryAiAdd();
+}
+
+function resizeImageToDataUrl(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Kunde inte läsa bilden."));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("Kunde inte läsa bilden."));
+      image.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzeTemporaryItemWithAi() {
+  const text = els.temporaryAiInput?.value.trim() || "";
+  if (!text && !pendingTemporaryImage) {
+    temporaryAiStatus = "Skriv något eller välj en bild först.";
+    renderTemporaryAiAdd();
+    return;
+  }
+  const image = pendingTemporaryImage;
+  pendingTemporaryImage = null;
+  temporaryAiSuggestion = null;
+  temporaryAiStatus = "Analyserar...";
+  temporaryAiBusy = true;
+  renderTemporaryAiAdd();
+
+  try {
+    const prompt = text || "Analysera bilden och uppskatta maten som tillfälligt idag.";
+    const response = await requestAiCoach(prompt, image);
+    const suggestion = normalizeAiSuggestion(response.temporaryItem);
+    temporaryAiSuggestion = suggestion;
+    temporaryAiStatus = suggestion
+      ? (response.reply || "Kontrollera uppskattningen och lägg till den om den stämmer.")
+      : (response.reply || "Jag hittade inget tydligt att lägga till.");
+    if (suggestion && els.temporaryAiInput) els.temporaryAiInput.value = "";
+    if (els.temporaryImageInput) els.temporaryImageInput.value = "";
+  } catch (error) {
+    temporaryAiStatus = `AI är inte tillgänglig just nu: ${error.message}`;
+    if (els.temporaryImageInput) els.temporaryImageInput.value = "";
+  } finally {
+    temporaryAiBusy = false;
+    renderTemporaryAiAdd();
+  }
+}
+
+function addTemporarySuggestionToToday(suggestion) {
+  const grams = Math.max(1, number(suggestion.grams, 100));
+  state.temporaryItems.push({
+    id: makeId("temp"),
+    name: suggestion.name,
+    grams,
+    kcal100: (number(suggestion.kcal) * 100) / grams,
+    protein100: (number(suggestion.protein) * 100) / grams,
+    carbs100: (number(suggestion.carbs) * 100) / grams,
+    fat100: (number(suggestion.fat) * 100) / grams,
+  });
+}
+
+function acceptTemporaryAiSuggestion() {
+  if (!temporaryAiSuggestion) return;
+  addTemporarySuggestionToToday(temporaryAiSuggestion);
+  temporaryAiSuggestion = null;
+  temporaryAiStatus = "Tillagt i Tillfälligt idag.";
+  saveState();
+  renderOverview();
+  renderShopping();
+}
+
+function dismissTemporaryAiSuggestion() {
+  temporaryAiSuggestion = null;
+  temporaryAiStatus = "";
+  renderTemporaryAiAdd();
+}
+
+function acceptAiFoodSuggestion(messageId) {
+  const message = state.coachMessages.find((item) => item.id === messageId);
+  const suggestion = message?.suggestion;
+  if (!suggestion || suggestion.accepted || suggestion.dismissed) return;
+  addTemporarySuggestionToToday(suggestion);
+  suggestion.accepted = true;
+  saveState();
+  renderCoachChat();
+  renderOverview();
+  renderShopping();
+}
+
+function dismissAiFoodSuggestion(messageId) {
+  const message = state.coachMessages.find((item) => item.id === messageId);
+  if (!message?.suggestion) return;
+  message.suggestion.dismissed = true;
+  saveState();
+  renderCoachChat();
+}
+
 function updateTargetInputs() {
   const target = state.targets[activeTarget];
   target.kcal = number(els.targetKcal.value);
@@ -1636,6 +2267,24 @@ function updateTargetInputs() {
   saveState();
   renderTargets();
   renderOverview();
+}
+
+function updateWaterGoalInput() {
+  if (!els.waterGoal) return;
+  state.water = normalizeWater(state.water);
+  state.water.goalMl = Math.max(0, number(els.waterGoal.value, DEFAULT_WATER_GOAL_ML)) || DEFAULT_WATER_GOAL_ML;
+  syncTodayWaterLog();
+  saveState();
+  renderTargets();
+  renderWaterTracker();
+  renderLog();
+}
+
+function addCustomWater() {
+  const input = document.querySelector("#waterCustomMl");
+  const amount = number(input?.value);
+  if (amount <= 0) return;
+  addWaterMl(amount);
 }
 
 function setSettingsOpen(open) {
@@ -1746,6 +2395,8 @@ function bindEvents() {
   [els.targetKcal, els.targetProtein, els.targetCarbs, els.targetFat].forEach((input) => {
     input.addEventListener("change", updateTargetInputs);
   });
+  els.waterGoal?.addEventListener("input", updateWaterGoalInput);
+  els.waterGoal?.addEventListener("change", updateWaterGoalInput);
 
   els.foodSearch.addEventListener("input", renderFoods);
   els.recipeTagFilter.addEventListener("change", () => {
@@ -1759,6 +2410,24 @@ function bindEvents() {
   els.addExtraSlot.addEventListener("click", addExtraSlot);
   els.logToday.addEventListener("click", logToday);
   els.sendCoachMessage.addEventListener("click", sendCoachMessage);
+  els.analyzeTemporaryItem?.addEventListener("click", analyzeTemporaryItemWithAi);
+  els.attachTemporaryImage?.addEventListener("click", () => els.temporaryImageInput?.click());
+  els.temporaryImageInput?.addEventListener("change", (event) => {
+    const [file] = event.target.files || [];
+    selectTemporaryImage(file).catch((error) => {
+      temporaryAiStatus = error.message;
+      renderTemporaryAiAdd();
+    });
+  });
+  els.temporaryAiInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      analyzeTemporaryItemWithAi();
+    }
+  });
+  els.saveAiSettings?.addEventListener("click", saveAiSettingsFromInputs);
+  els.loginAi?.addEventListener("click", loginAi);
+  els.logoutAi?.addEventListener("click", logoutAi);
   els.coachInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -1842,6 +2511,17 @@ function bindEvents() {
       const entry = state.logEntries.find((item) => item.id === logId);
       if (entry) {
         entry.macros[key] = number(target.value);
+      }
+      saveState();
+      return;
+    }
+
+    const logWater = target.dataset.logWater;
+    if (logWater) {
+      const [logId, key] = logWater.split(":");
+      const entry = state.logEntries.find((item) => item.id === logId);
+      if (entry) {
+        entry[key] = number(target.value);
       }
       saveState();
       return;
@@ -2015,7 +2695,7 @@ function bindEvents() {
       renderOverview();
       return;
     }
-    if (target.dataset.logMacro || target.dataset.logField) {
+    if (target.dataset.logMacro || target.dataset.logField || target.dataset.logWater) {
       renderLog();
       return;
     }
@@ -2063,6 +2743,10 @@ function bindEvents() {
       event.preventDefault();
       addTagToRecipe(recipeId, target.value);
     }
+    if (target.id === "waterCustomMl" && event.key === "Enter") {
+      event.preventDefault();
+      addCustomWater();
+    }
   });
 
   document.addEventListener("focusout", (event) => {
@@ -2094,6 +2778,44 @@ function bindEvents() {
 
     if (!target.closest("#foodSuggest") && !target.closest("[data-food-lookup]")) {
       hideFoodSuggest();
+    }
+
+    const waterAdd = target.closest("[data-water-add]")?.dataset.waterAdd;
+    if (waterAdd) {
+      addWaterMl(number(waterAdd));
+      return;
+    }
+
+    if (target.closest("[data-water-custom]")) {
+      addCustomWater();
+      return;
+    }
+
+    if (target.closest("[data-water-reset]")) {
+      resetTodayWater();
+      return;
+    }
+
+    const aiFoodToAccept = target.closest("[data-accept-ai-food]")?.dataset.acceptAiFood;
+    if (aiFoodToAccept) {
+      acceptAiFoodSuggestion(aiFoodToAccept);
+      return;
+    }
+
+    const aiFoodToDismiss = target.closest("[data-dismiss-ai-food]")?.dataset.dismissAiFood;
+    if (aiFoodToDismiss) {
+      dismissAiFoodSuggestion(aiFoodToDismiss);
+      return;
+    }
+
+    if (target.closest("[data-accept-temporary-ai]")) {
+      acceptTemporaryAiSuggestion();
+      return;
+    }
+
+    if (target.closest("[data-dismiss-temporary-ai]")) {
+      dismissTemporaryAiSuggestion();
+      return;
     }
 
     const tagToSave = target.closest("[data-save-tag]")?.dataset.saveTag;

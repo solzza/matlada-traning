@@ -17,6 +17,9 @@
   --amber-soft: #f5ead4;
   --green: #4d8358;
   --green-soft: #e4efdf;
+  --water: #2f7fa7;
+  --water-deep: #23556b;
+  --water-soft: #ddeef5;
   --sidebar: #17231f;
   --sidebar-soft: #21332d;
   --sand-card: #fff7e9;
@@ -115,13 +118,13 @@ textarea:focus {
 }
 
 textarea {
-  min-height: 86px;
+  min-height: 70px;
   resize: vertical;
 }
 
 .app-shell {
   display: grid;
-  grid-template-columns: 286px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -129,7 +132,7 @@ textarea {
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 24px 20px;
+  padding: 18px 16px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(180deg, rgba(33, 51, 45, 0.92), rgba(23, 35, 31, 1)),
@@ -140,16 +143,16 @@ textarea {
 
 .brand {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   background: #f0b45e;
@@ -182,8 +185,8 @@ textarea {
 
 .tabs {
   display: grid;
-  gap: 7px;
-  margin-bottom: 24px;
+  gap: 5px;
+  margin-bottom: 18px;
 }
 
 .tab {
@@ -355,6 +358,29 @@ body.settings-open .settings-toggle {
   margin-top: 4px;
 }
 
+.water-goal-field {
+  max-width: 190px;
+}
+
+.water-goal-field input {
+  margin-top: 4px;
+}
+
+.ai-settings-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-settings-fields label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ai-settings-fields input {
+  margin-top: 4px;
+}
+
 .settings-section input,
 .settings-section select,
 .settings-section button {
@@ -381,7 +407,7 @@ body.settings-open .settings-toggle {
 
 .content {
   min-width: 0;
-  padding: 28px 84px 28px 28px;
+  padding: 20px 72px 20px 20px;
 }
 
 .view {
@@ -396,13 +422,13 @@ body.settings-open .settings-toggle {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .toolbar h2 {
   color: var(--ink);
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.08;
 }
 
@@ -433,14 +459,14 @@ body.settings-open .settings-toggle {
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .metric-card {
   position: relative;
   overflow: hidden;
-  padding: 16px;
+  padding: 11px 12px 11px 15px;
   background: var(--panel-strong);
   border: 1px solid rgba(199, 181, 153, 0.76);
   border-radius: 8px;
@@ -479,9 +505,9 @@ body.settings-open .settings-toggle {
 .metric-card::after {
   content: "";
   position: absolute;
-  inset: auto 14px 12px auto;
-  width: 56px;
-  height: 56px;
+  inset: auto 10px 9px auto;
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
   background: var(--accent-soft);
   opacity: 0.7;
@@ -509,8 +535,8 @@ body.settings-open .settings-toggle {
 .metric-delta {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 4px 8px;
+  min-height: 21px;
+  padding: 2px 7px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -522,9 +548,9 @@ body.settings-open .settings-toggle {
   position: relative;
   z-index: 1;
   display: block;
-  font-size: 30px;
+  font-size: 24px;
   line-height: 1.1;
-  margin: 8px 0;
+  margin: 5px 0;
 }
 
 .metric-card small {
@@ -533,7 +559,7 @@ body.settings-open .settings-toggle {
 }
 
 .metric-meta {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .metric-delta.warn {
@@ -554,7 +580,7 @@ body.settings-open .settings-toggle {
 .bar {
   position: relative;
   z-index: 1;
-  height: 8px;
+  height: 6px;
   overflow: hidden;
   background: #e9dfcf;
   border-radius: 999px;
@@ -575,9 +601,119 @@ body.settings-open .settings-toggle {
   background: var(--coral);
 }
 
+.water-panel {
+  margin-bottom: 12px;
+}
+
+.water-panel-head {
+  margin-bottom: 8px;
+}
+
+.water-panel-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.water-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--water-soft);
+  color: var(--water-deep);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.water-status.ok {
+  background: var(--green-soft);
+  color: #355f3c;
+}
+
+.water-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.water-progress {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(var(--water) var(--water-progress), #e9dfcf 0);
+}
+
+.water-progress::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--panel-strong);
+}
+
+.water-progress-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.water-progress strong {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.water-progress span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.water-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.water-quick-actions,
+.water-custom-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.water-add {
+  background: var(--water-soft);
+  border-color: rgba(47, 127, 167, 0.24);
+  color: var(--water-deep);
+  font-weight: 800;
+}
+
+.water-custom-row input {
+  flex: 0 1 118px;
+  width: auto;
+}
+
+.water-custom-add {
+  background: var(--water);
+  border-color: var(--water);
+  color: #fff;
+}
+
+.water-reset {
+  color: var(--muted);
+}
+
 .layout {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .two-col {
@@ -601,19 +737,19 @@ body.settings-open .settings-toggle {
 }
 
 .panel {
-  padding: 16px;
+  padding: 12px;
 }
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .panel-head h3 {
-  font-size: 15px;
+  font-size: 13px;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
@@ -621,8 +757,8 @@ body.settings-open .settings-toggle {
 .panel-head button,
 #addExtraSlot,
 #addTemporaryItem {
-  min-height: 34px;
-  padding: 7px 10px;
+  min-height: 31px;
+  padding: 5px 9px;
   background: var(--panel-strong);
 }
 
@@ -631,7 +767,7 @@ body.settings-open .settings-toggle {
 .log-list,
 .suggestion-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .plan-row,
@@ -643,9 +779,9 @@ body.settings-open .settings-toggle {
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 86px;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 12px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--sand-row);
@@ -680,7 +816,7 @@ body.settings-open .settings-toggle {
 .overview-layout .temporary-row,
 .overview-layout .suggestion {
   border-color: rgba(199, 181, 153, 0.95);
-  box-shadow: 0 8px 18px rgba(87, 67, 37, 0.08);
+  box-shadow: 0 4px 12px rgba(87, 67, 37, 0.06);
 }
 
 .overview-layout .meal-slot::before,
@@ -690,7 +826,7 @@ body.settings-open .settings-toggle {
 }
 
 .overview-layout .meal-slot {
-  padding-left: 16px;
+  padding-left: 13px;
 }
 
 .overview-layout .meal-slot.required {
@@ -706,14 +842,14 @@ body.settings-open .settings-toggle {
 }
 
 .overview-layout .temporary-row {
-  padding-left: 16px;
+  padding-left: 13px;
   background:
     linear-gradient(90deg, rgba(189, 132, 45, 0.14), rgba(255, 247, 233, 0) 34%),
     var(--sand-row);
 }
 
 .overview-layout .suggestion {
-  padding-left: 16px;
+  padding-left: 13px;
 }
 
 .meal-slot-head,
@@ -739,12 +875,12 @@ body.settings-open .settings-toggle {
   width: auto;
   min-width: 128px;
   max-width: 160px;
-  min-height: 34px;
-  padding: 6px 9px;
+  min-height: 31px;
+  padding: 5px 8px;
 }
 
 .required-badge {
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: var(--teal-soft);
   color: var(--teal-deep);
@@ -755,7 +891,7 @@ body.settings-open .settings-toggle {
 .meal-slot-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 82px;
-  gap: 8px;
+  gap: 7px;
 }
 
 .temporary-row {
@@ -763,10 +899,53 @@ body.settings-open .settings-toggle {
   --item-accent: var(--amber);
 }
 
+.temporary-ai-add {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid rgba(189, 132, 45, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.76);
+}
+
+.temporary-ai-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.temporary-ai-row button {
+  min-height: 34px;
+  padding: 6px 9px;
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+
+.temporary-ai-row .temporary-image-button {
+  background: var(--panel-strong);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.temporary-ai-status {
+  min-height: 18px;
+  margin: 0;
+  color: var(--water-deep);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.temporary-ai-suggestion {
+  margin-top: 0;
+}
+
 .temporary-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 82px;
-  gap: 8px;
+  gap: 6px;
 }
 
 .temporary-macro {
@@ -776,7 +955,7 @@ body.settings-open .settings-toggle {
 }
 
 .empty-state {
-  padding: 14px;
+  padding: 10px;
   color: var(--muted);
   border: 1px dashed var(--line-strong);
   border-radius: 8px;
@@ -806,13 +985,13 @@ body.settings-open .settings-toggle {
 .recipe-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .recipe-card {
   position: relative;
   overflow: hidden;
-  padding: 16px;
+  padding: 12px;
   --item-accent: var(--teal);
 }
 
@@ -842,12 +1021,12 @@ body.settings-open .settings-toggle {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 9px;
 }
 
 .recipe-title-row h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.2;
 }
 
@@ -1143,9 +1322,9 @@ body.settings-open .settings-toggle {
   position: relative;
   overflow: hidden;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--sand-row);
@@ -1179,6 +1358,12 @@ body.settings-open .settings-toggle {
   font-size: 12px;
 }
 
+.water-log-line {
+  color: var(--water-deep);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .coach-chat {
   display: grid;
   gap: 8px;
@@ -1194,6 +1379,22 @@ body.settings-open .settings-toggle {
   background: var(--panel-strong);
 }
 
+.coach-message small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.coach-message.pending {
+  color: var(--muted);
+}
+
+.coach-message.error {
+  border-color: rgba(201, 95, 69, 0.34);
+  background: var(--coral-soft);
+}
+
 .coach-message.user {
   background: var(--teal-soft);
   border-color: rgba(20, 116, 111, 0.18);
@@ -1202,6 +1403,41 @@ body.settings-open .settings-toggle {
 
 .coach-message.coach {
   margin-right: 24px;
+}
+
+.coach-attachment-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: var(--water-deep);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.coach-suggestion {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(47, 127, 167, 0.22);
+  border-radius: 8px;
+  background: var(--water-soft);
+}
+
+.coach-suggestion span {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.coach-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coach-suggestion-actions button {
+  min-height: 34px;
+  padding: 7px 10px;
 }
 
 .coach-input-row {
@@ -1482,28 +1718,28 @@ body.settings-open .settings-toggle {
   }
 
   .content {
-    padding: 22px 18px calc(84px + env(safe-area-inset-bottom));
+    padding: 16px 14px calc(76px + env(safe-area-inset-bottom));
   }
 }
 
 @media (max-width: 560px) {
   .content,
   .sidebar {
-    padding: 16px;
+    padding: 12px;
   }
 
   .content {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
   .toolbar {
     display: grid;
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 7px;
+    margin-bottom: 10px;
   }
 
   .toolbar h2 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .toolbar button {
@@ -1512,13 +1748,13 @@ body.settings-open .settings-toggle {
 
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: 7px;
+    margin-bottom: 9px;
   }
 
   .metric-card {
     min-height: 0;
-    padding: 10px 10px 10px 13px;
+    padding: 8px 8px 8px 11px;
   }
 
   .metric-card::after {
@@ -1534,23 +1770,23 @@ body.settings-open .settings-toggle {
   }
 
   .metric-head span:first-child {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .metric-percent,
   .metric-delta {
-    min-height: 20px;
-    padding: 2px 6px;
-    font-size: 11px;
+    min-height: 18px;
+    padding: 1px 5px;
+    font-size: 10px;
   }
 
   .metric-card strong {
-    font-size: 20px;
-    margin: 4px 0;
+    font-size: 18px;
+    margin: 3px 0;
   }
 
   .metric-card small {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .metric-meta {
@@ -1560,7 +1796,7 @@ body.settings-open .settings-toggle {
   }
 
   .bar {
-    height: 5px;
+    height: 4px;
   }
 
   .target-fields {
@@ -1583,9 +1819,75 @@ body.settings-open .settings-toggle {
     grid-template-columns: auto minmax(150px, 220px);
   }
 
+  .water-panel {
+    margin-bottom: 9px;
+  }
+
+  .water-card {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .water-progress {
+    width: 78px;
+  }
+
+  .water-progress::after {
+    inset: 7px;
+  }
+
+  .water-progress strong {
+    font-size: 14px;
+  }
+
+  .water-progress span {
+    font-size: 10px;
+  }
+
+  .water-add,
+  .water-custom-add,
+  .water-reset {
+    min-height: 32px;
+    padding: 5px 7px;
+  }
+
+  .water-custom-row input {
+    flex: 1 1 84px;
+    min-width: 84px;
+  }
+
   .meal-slot-controls,
   .temporary-fields {
     grid-template-columns: minmax(0, 1fr) 74px;
+  }
+
+  .panel {
+    padding: 10px;
+  }
+
+  .panel-head {
+    margin-bottom: 8px;
+  }
+
+  .layout,
+  .plan-list,
+  .temporary-list,
+  .log-list,
+  .suggestion-list {
+    gap: 7px;
+  }
+
+  .meal-slot,
+  .temporary-row,
+  .shopping-choice,
+  .suggestion {
+    padding: 8px;
+  }
+
+  .overview-layout .meal-slot,
+  .overview-layout .temporary-row,
+  .overview-layout .suggestion {
+    padding-left: 11px;
   }
 
   .ingredient-row {
@@ -1602,7 +1904,22 @@ body.settings-open .settings-toggle {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .tag-add-row,
+  .tag-add-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .temporary-ai-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .temporary-ai-row input {
+    grid-column: 1 / -1;
+  }
+
+  .temporary-ai-row button {
+    width: 100%;
+  }
+
   .coach-input-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

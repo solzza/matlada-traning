@@ -47,6 +47,7 @@
             <button id="logToday" type="button">Registrera dagen</button>
           </div>
           <div class="metrics" id="metricCards"></div>
+          <section class="panel water-panel" id="waterTracker"></section>
           <div class="layout overview-layout">
             <section class="panel">
               <div class="panel-head">
@@ -58,7 +59,17 @@
             <section class="panel">
               <div class="panel-head">
                 <h3>Tillfälligt idag</h3>
-                <button id="addTemporaryItem" type="button">Lägg till</button>
+                <button id="addTemporaryItem" type="button">Manuell</button>
+              </div>
+              <div class="temporary-ai-add">
+                <div class="temporary-ai-row">
+                  <input id="temporaryAiInput" type="text" placeholder="Skriv eller fota något oplanerat">
+                  <button id="attachTemporaryImage" class="temporary-image-button" type="button">Bild</button>
+                  <button id="analyzeTemporaryItem" type="button">Lägg till</button>
+                </div>
+                <input id="temporaryImageInput" type="file" accept="image/*" capture="environment" hidden>
+                <p id="temporaryAiStatus" class="temporary-ai-status" aria-live="polite"></p>
+                <div id="temporaryAiSuggestion"></div>
               </div>
               <div id="temporaryItems" class="temporary-list"></div>
             </section>
@@ -223,7 +234,23 @@
               <label>kolh<input id="targetCarbs" type="number" min="0" step="1"></label>
               <label>fett<input id="targetFat" type="number" min="0" step="1"></label>
             </div>
+            <label class="water-goal-field">vatten / dag<input id="waterGoal" type="number" min="0" step="50"></label>
           </div>
+        </section>
+        <section class="settings-section">
+          <h3>AI-coach</h3>
+          <div class="ai-settings-fields">
+            <label>Supabase URL<input id="supabaseUrl" type="url" placeholder="https://...supabase.co"></label>
+            <label>Publishable key<input id="supabaseAnonKey" type="password" autocomplete="off"></label>
+            <label>E-post<input id="supabaseEmail" type="email" autocomplete="username"></label>
+            <label>Lösenord<input id="supabasePassword" type="password" autocomplete="current-password"></label>
+          </div>
+          <div class="settings-actions">
+            <button id="saveAiSettings" type="button">Spara</button>
+            <button id="loginAi" type="button">Logga in</button>
+            <button id="logoutAi" type="button">Logga ut</button>
+          </div>
+          <p id="aiSettingsStatus" class="settings-status" aria-live="polite"></p>
         </section>
         <section class="settings-section">
           <h3>Data</h3>

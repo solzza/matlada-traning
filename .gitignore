@@ -3,11 +3,17 @@
 .codex/
 .vscode/
 .idea/
+node_modules/
 
 # Runtime logs
 *.log
 dashboard/server.out.log
 dashboard/server.err.log
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
 
 # Local backups and exports
 matdash-backup-*.json
