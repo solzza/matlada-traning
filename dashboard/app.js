@@ -74,6 +74,8 @@ const initialData = window.MATDASH_DATA || {
   extraSlots: [],
   logEntries: [],
   coachMessages: [],
+  todayCoachMessages: [],
+  logCoachMessages: [],
   menus: [],
   temporaryItems: [],
   water: {
@@ -96,6 +98,8 @@ let pendingTemporaryImage = null;
 let temporaryAiSuggestion = null;
 let temporaryAiStatus = "";
 let temporaryAiBusy = false;
+let pendingOverviewCoachImage = null;
+let overviewCoachBusy = false;
 
 const els = {
   settingsToggle: document.querySelector("#settingsToggle"),
@@ -123,6 +127,13 @@ const els = {
   temporaryAiSuggestion: document.querySelector("#temporaryAiSuggestion"),
   temporaryItems: document.querySelector("#temporaryItems"),
   suggestions: document.querySelector("#suggestions"),
+  overviewCoachChat: document.querySelector("#overviewCoachChat"),
+  overviewCoachInput: document.querySelector("#overviewCoachInput"),
+  sendOverviewCoachMessage: document.querySelector("#sendOverviewCoachMessage"),
+  clearOverviewCoachHistory: document.querySelector("#clearOverviewCoachHistory"),
+  attachOverviewCoachImage: document.querySelector("#attachOverviewCoachImage"),
+  overviewCoachImageInput: document.querySelector("#overviewCoachImageInput"),
+  overviewCoachImageStatus: document.querySelector("#overviewCoachImageStatus"),
   recipeGrid: document.querySelector("#recipeGrid"),
   recipeTagFilter: document.querySelector("#recipeTagFilter"),
   menuList: document.querySelector("#menuList"),
@@ -135,6 +146,7 @@ const els = {
   coachChat: document.querySelector("#coachChat"),
   coachInput: document.querySelector("#coachInput"),
   sendCoachMessage: document.querySelector("#sendCoachMessage"),
+  clearCoachHistory: document.querySelector("#clearCoachHistory"),
   foodRows: document.querySelector("#foodRows"),
   foodSearch: document.querySelector("#foodSearch"),
   foodOptions: document.querySelector("#foodOptions"),
@@ -188,6 +200,8 @@ function loadState() {
     extraSlots: [],
     logEntries: [],
     coachMessages: [],
+    todayCoachMessages: [],
+    logCoachMessages: [],
     menus: [],
     temporaryItems: [],
     water: clone(initialData.water || { goalMl: DEFAULT_WATER_GOAL_ML, days: {} }),
@@ -244,6 +258,11 @@ function normalizeState(raw) {
   const shoppingSelections = raw.shoppingSelections?.length
     ? raw.shoppingSelections
     : recipes.map((recipe) => ({ type: "recipe", id: recipe.id, servings: 0 }));
+  const legacyCoachMessages = normalizeCoachMessages(raw.coachMessages);
+  const todayCoachMessages = normalizeCoachMessages(
+    raw.todayCoachMessages?.length ? raw.todayCoachMessages : legacyCoachMessages,
+  );
+  const logCoachMessages = normalizeCoachMessages(raw.logCoachMessages);
 
   return {
     targets: raw.targets || clone(initialData.targets),
@@ -265,7 +284,9 @@ function normalizeState(raw) {
     })),
     menus,
     temporaryItems,
-    coachMessages: normalizeCoachMessages(raw.coachMessages),
+    coachMessages: [],
+    todayCoachMessages,
+    logCoachMessages,
     water,
   };
 }
@@ -373,7 +394,7 @@ function iconButton(name, attrs, label, className = "") {
 }
 
 function trashButton(attrs, label = "Ta bort") {
-  return iconButton("trash", attrs, label, "danger-icon");
+  return iconButton("trash", attrs, label, "danger-icon remove-action");
 }
 
 function formatDateKey(date = new Date()) {
@@ -895,7 +916,7 @@ function renderAiSettings() {
   els.supabaseUrl.value = aiConfig.supabaseUrl;
   els.supabaseAnonKey.value = aiConfig.anonKey;
   if (els.supabaseEmail) els.supabaseEmail.value = aiConfig.userEmail;
-  if (els.loginAi) els.loginAi.disabled = !isAiConfigured();
+  if (els.loginAi) els.loginAi.disabled = false;
   if (els.logoutAi) els.logoutAi.disabled = !aiConfig.accessToken;
   if (aiConfig.accessToken) {
     els.aiSettingsStatus.textContent = `Inloggad som ${aiConfig.userEmail || "Supabase-användare"}.`;
@@ -987,7 +1008,7 @@ function renderOverview(options = {}) {
     ...state.dailySlots.map((slot) => renderDailySlot(slot, true)),
     ...state.extraSlots.map((slot) => renderDailySlot(slot, false)),
   ].join("");
-  renderTemporaryAiAdd();
+  renderCoachChat();
 
   if (renderTemporary) {
     els.temporaryItems.innerHTML = state.temporaryItems.length
@@ -1845,28 +1866,11 @@ function buildCoachInsights(entries, avg) {
   return insights;
 }
 
-function renderCoachChat() {
-  const messages = state.coachMessages || [];
-  els.coachChat.innerHTML = messages.length
-    ? messages.map((message) => `<div class="coach-message ${message.role}">${escapeHtml(message.text)}</div>`).join("")
-    : `<div class="empty-state">Fråga t.ex. “hur ska jag tänka den här veckan?” eller “vad saknas i min variation?”.</div>`;
-}
-
-function sendCoachMessage() {
-  const text = els.coachInput.value.trim();
-  if (!text) return;
-  state.coachMessages.push({ role: "user", text });
-  state.coachMessages.push({ role: "coach", text: buildCoachReply(text) });
-  els.coachInput.value = "";
-  saveState();
-  renderCoachChat();
-}
-
 function buildCoachReply(question) {
   const entries = [...(state.logEntries || [])].sort((a, b) => b.date.localeCompare(a.date));
   const recent = entries.slice(0, 14);
   if (!recent.length) {
-    return "Börja med att registrera 3-4 dagar. Då kan jag se om snittet missar energi, protein, kolhydrater eller fett och ge bättre råd om variation.";
+    return "**Börja med loggen**\n\nRegistrera 3-4 dagar först. Då kan jag se om snittet missar energi, protein, kolhydrater eller fett.\n\n- Logga måltiderna\n- Lägg in vatten\n- Notera gärna hunger, energi och träning";
   }
   const avg = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   recent.forEach((entry) => macroKeys.forEach(([key]) => { avg[key] += number(entry.macros[key]); }));
@@ -1874,38 +1878,143 @@ function buildCoachReply(question) {
   const insights = buildCoachInsights(recent, avg);
   const q = question.toLowerCase();
   if (q.includes("variation") || q.includes("variera")) {
-    return "Tänk variation som små byten, inte ett helt nytt liv: rotera proteinkälla, grönsak och kolhydratbas. Behåll makrona genom att byta ungefär gram mot gram inom samma kategori.";
+    return "**Tänk små byten**\n\nDu behöver inte bygga om hela upplägget.\n\n- Rotera proteinkälla\n- Byt grönsak oftare\n- Variera kolhydratbas mellan ris, pasta, potatis, havre eller quinoa\n\nBehåll makrona genom att byta ungefär gram mot gram inom samma kategori.";
   }
   if (q.includes("protein")) {
-    return `Ditt senaste snitt är ${format(avg.protein, 1)} g protein. Prioritera 35-55 g protein i frukost/lunch/middag och använd whey/casein bara för att täcka luckor.`;
+    return `**Proteinläge**\n\nDitt senaste snitt är ${format(avg.protein, 1)} g protein.\n\n- Sikta på 35-55 g protein i frukost, lunch och middag\n- Använd whey/casein för att täcka luckor\n- Höj helst med riktig proteinkälla om du också behöver mer mättnad`;
   }
   if (q.includes("fett")) {
-    return `Ditt senaste snitt är ${format(avg.fat, 1)} g fett. Höj med små doser: 10-20 g olivolja, 20-35 g nötter, ägg eller fet fisk. Undvik att “lösa” allt med jättemycket olja.`;
+    return `**Fettläge**\n\nDitt senaste snitt är ${format(avg.fat, 1)} g fett.\n\nBra höjningar:\n- 10-20 g olivolja\n- 20-35 g nötter\n- Ägg eller fet fisk\n\nUndvik att lösa allt med jättemycket olja.`;
   }
   if (q.includes("kolh") || q.includes("carb") || q.includes("träning")) {
-    return `Ditt senaste snitt är ${format(avg.carbs, 1)} g kolhydrater. Lägg mer runt passet om prestation saknas: banan, havre, ris, pasta eller potatis.`;
+    return `**Kolhydrater och träning**\n\nDitt senaste snitt är ${format(avg.carbs, 1)} g kolhydrater.\n\nLägg mer runt passet om prestation saknas:\n- Banan\n- Havre\n- Ris, pasta eller potatis`;
   }
-  return `${insights[0].title}: ${insights[0].body} Snittet senaste ${recent.length} dagar är ${format(avg.kcal)} kcal, ${format(avg.protein, 1)} g protein, ${format(avg.carbs, 1)} g kolh och ${format(avg.fat, 1)} g fett.`;
+  return `**${insights[0].title}**\n\n${insights[0].body}\n\nSnitt senaste ${recent.length} dagar:\n- ${format(avg.kcal)} kcal\n- ${format(avg.protein, 1)} g protein\n- ${format(avg.carbs, 1)} g kolh\n- ${format(avg.fat, 1)} g fett`;
 }
 
 function renderCoachChat() {
-  const messages = state.coachMessages || [];
-  els.coachChat.innerHTML = messages.length
-    ? messages.map((message) => {
-        const suggestion = message.suggestion && !message.suggestion.accepted && !message.suggestion.dismissed
-          ? renderCoachSuggestion(message.id, message.suggestion)
-          : "";
-        const imageText = message.imageName ? `<small>Bild: ${escapeHtml(message.imageName)}</small>` : "";
-        const stateClass = message.pending ? "pending" : message.error ? "error" : "";
-        return `
-          <div class="coach-message ${message.role} ${stateClass}">
-            <div>${escapeHtml(message.text)}</div>
-            ${imageText}
-            ${suggestion}
-          </div>
-        `;
-      }).join("")
-    : `<div class="empty-state">Fråga coachen om veckan, variation eller makro.</div>`;
+  const logMessages = getCoachMessages("log");
+  const todayMessages = getCoachMessages("overview");
+  const logHtml = renderCoachMessageList(logMessages);
+  const todayHtml = renderCoachMessageList(todayMessages);
+  if (els.coachChat) {
+    els.coachChat.innerHTML = logHtml || `<div class="empty-state">Fråga coachen om historik, trender och vad som behövs på längre sikt.</div>`;
+  }
+  if (els.overviewCoachChat) {
+    els.overviewCoachChat.innerHTML = todayHtml || `<div class="empty-state">Fråga AI om dagen, maten eller skriv något du ätit så kan den föreslå vad som ska läggas till.</div>`;
+  }
+  renderOverviewCoachControls();
+}
+
+function getCoachMessages(source = "overview") {
+  if (source === "log") {
+    state.logCoachMessages ||= [];
+    return state.logCoachMessages;
+  }
+  state.todayCoachMessages ||= [];
+  return state.todayCoachMessages;
+}
+
+function renderCoachMessageList(messages) {
+  return messages.length
+    ? [...messages].reverse().map((message) => renderCoachMessage(message)).join("")
+    : "";
+}
+
+function renderCoachMessage(message) {
+  const suggestion = message.suggestion && !message.suggestion.accepted && !message.suggestion.dismissed
+    ? renderCoachSuggestion(message.id, message.suggestion)
+    : "";
+  const imageText = message.imageName ? `<small>Bild: ${escapeHtml(message.imageName)}</small>` : "";
+  const stateClass = message.pending ? "pending" : message.error ? "error" : "";
+  return `
+    <div class="coach-message ${message.role} ${stateClass}">
+      <div class="coach-message-content">${renderFormattedCoachText(message.text)}</div>
+      ${imageText}
+      ${suggestion}
+    </div>
+  `;
+}
+
+function renderOverviewCoachControls() {
+  if (els.overviewCoachImageStatus) {
+    els.overviewCoachImageStatus.textContent = pendingOverviewCoachImage
+      ? `Bild vald: ${pendingOverviewCoachImage.name}`
+      : "";
+  }
+  if (els.sendOverviewCoachMessage) {
+    els.sendOverviewCoachMessage.disabled = overviewCoachBusy;
+    els.sendOverviewCoachMessage.textContent = overviewCoachBusy ? "Skickar" : "Skicka";
+  }
+  if (els.clearCoachHistory) els.clearCoachHistory.disabled = !getCoachMessages("log").length;
+  if (els.clearOverviewCoachHistory) els.clearOverviewCoachHistory.disabled = !getCoachMessages("overview").length;
+}
+
+function clearCoachHistory(source = "log") {
+  const messages = getCoachMessages(source);
+  if (!messages.length) return;
+  messages.splice(0, messages.length);
+  if (source === "overview") {
+    pendingOverviewCoachImage = null;
+    overviewCoachBusy = false;
+    if (els.overviewCoachInput) els.overviewCoachInput.value = "";
+    if (els.overviewCoachImageInput) els.overviewCoachImageInput.value = "";
+  } else if (els.coachInput) {
+    els.coachInput.value = "";
+  }
+  saveState();
+  renderCoachChat();
+}
+
+function renderFormattedCoachText(text) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let paragraph = [];
+  let list = null;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${formatInlineCoachText(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list) return;
+    blocks.push(`<${list.type}>${list.items.map((item) => `<li>${formatInlineCoachText(item)}</li>`).join("")}</${list.type}>`);
+    list = null;
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) {
+      flushParagraph();
+      const type = numbered ? "ol" : "ul";
+      if (!list || list.type !== type) {
+        flushList();
+        list = { type, items: [] };
+      }
+      list.items.push((bullet || numbered)[1]);
+      return;
+    }
+
+    flushList();
+    paragraph.push(trimmed);
+  });
+
+  flushParagraph();
+  flushList();
+  return blocks.join("") || `<p>${formatInlineCoachText(text)}</p>`;
+}
+
+function formatInlineCoachText(text) {
+  return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
 function renderCoachSuggestion(messageId, item) {
@@ -1915,7 +2024,7 @@ function renderCoachSuggestion(messageId, item) {
       <span>${format(item.grams)} g · ${format(item.kcal)} kcal · ${format(item.protein, 1)} g protein · ${format(item.carbs, 1)} g kolh · ${format(item.fat, 1)} g fett</span>
       ${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}
       <div class="coach-suggestion-actions">
-        <button type="button" data-accept-ai-food="${messageId}">Lägg till</button>
+        <button type="button" data-accept-ai-food="${messageId}">Lägg till i dag</button>
         <button type="button" data-dismiss-ai-food="${messageId}">Avbryt</button>
       </div>
     </div>
@@ -1949,31 +2058,42 @@ function renderTemporaryAiSuggestion(item) {
   `;
 }
 
-async function sendCoachMessage() {
-  const text = els.coachInput.value.trim();
-  if (!text) return;
+async function sendCoachMessage(source = "log") {
+  const fromOverview = source === "overview";
+  const input = fromOverview ? els.overviewCoachInput : els.coachInput;
+  const image = fromOverview ? pendingOverviewCoachImage : null;
+  const text = input?.value.trim() || "";
+  if (!text && !image) return;
+  if (fromOverview) {
+    pendingOverviewCoachImage = null;
+    overviewCoachBusy = true;
+  }
+  const messages = getCoachMessages(source);
+  const focus = fromOverview ? "today_general" : "history_long_term";
+  const prompt = text || "Analysera bilden och uppskatta vad jag har ätit.";
   const pendingId = makeId("coach");
-  state.coachMessages.push({
+  messages.push({
     id: makeId("coach"),
     role: "user",
-    text,
-    imageName: "",
+    text: prompt,
+    imageName: image?.name || "",
     createdAt: new Date().toISOString(),
   });
-  state.coachMessages.push({
+  messages.push({
     id: pendingId,
     role: "coach",
     text: "Tänker...",
     pending: true,
     createdAt: new Date().toISOString(),
   });
-  els.coachInput.value = "";
+  if (input) input.value = "";
+  if (fromOverview && els.overviewCoachImageInput) els.overviewCoachImageInput.value = "";
   saveState();
   renderCoachChat();
 
-  const pendingMessage = state.coachMessages.find((message) => message.id === pendingId);
+  const pendingMessage = messages.find((message) => message.id === pendingId);
   try {
-    const response = await requestAiCoach(text, null);
+    const response = await requestAiCoach(prompt, image, focus, messages);
     if (pendingMessage) {
       pendingMessage.text = response.reply;
       pendingMessage.pending = false;
@@ -1981,16 +2101,18 @@ async function sendCoachMessage() {
     }
   } catch (error) {
     if (pendingMessage) {
-      pendingMessage.text = `${buildCoachReply(text)}\n\nAI är inte tillgänglig just nu: ${error.message}`;
+      pendingMessage.text = `${buildCoachReply(prompt)}\n\nAI är inte tillgänglig just nu: ${error.message}`;
       pendingMessage.pending = false;
       pendingMessage.error = true;
     }
+  } finally {
+    if (fromOverview) overviewCoachBusy = false;
   }
   saveState();
   renderCoachChat();
 }
 
-async function requestAiCoach(text, image) {
+async function requestAiCoach(text, image, focus = "today_general", historyMessages = []) {
   if (!isAiConfigured()) {
     throw new Error("lägg in Supabase URL och publishable key i inställningar.");
   }
@@ -2007,6 +2129,7 @@ async function requestAiCoach(text, image) {
       "Authorization": `Bearer ${aiConfig.accessToken}`,
     },
     body: JSON.stringify({
+      focus,
       message: text,
       imageDataUrl: image?.dataUrl || "",
       day: buildAiDayContext(),
@@ -2018,10 +2141,13 @@ async function requestAiCoach(text, image) {
         fat: food.fat,
         source: food.source,
       })),
-      messages: state.coachMessages.slice(-10).map((message) => ({
-        role: message.role,
-        text: message.text,
-      })),
+      messages: historyMessages
+        .filter((message) => !message.pending)
+        .slice(-10)
+        .map((message) => ({
+          role: message.role,
+          text: message.text,
+        })),
     }),
   });
 
@@ -2174,6 +2300,15 @@ async function selectTemporaryImage(file) {
   renderTemporaryAiAdd();
 }
 
+async function selectOverviewCoachImage(file) {
+  if (!file) return;
+  pendingOverviewCoachImage = {
+    name: file.name || "bild",
+    dataUrl: await resizeImageToDataUrl(file, 1200),
+  };
+  renderOverviewCoachControls();
+}
+
 function resizeImageToDataUrl(file, maxSize) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2258,8 +2393,14 @@ function dismissTemporaryAiSuggestion() {
   renderTemporaryAiAdd();
 }
 
+function findCoachMessage(messageId) {
+  return [getCoachMessages("overview"), getCoachMessages("log")]
+    .flat()
+    .find((item) => item.id === messageId);
+}
+
 function acceptAiFoodSuggestion(messageId) {
-  const message = state.coachMessages.find((item) => item.id === messageId);
+  const message = findCoachMessage(messageId);
   const suggestion = message?.suggestion;
   if (!suggestion || suggestion.accepted || suggestion.dismissed) return;
   addTemporarySuggestionToToday(suggestion);
@@ -2271,7 +2412,7 @@ function acceptAiFoodSuggestion(messageId) {
 }
 
 function dismissAiFoodSuggestion(messageId) {
-  const message = state.coachMessages.find((item) => item.id === messageId);
+  const message = findCoachMessage(messageId);
   if (!message?.suggestion) return;
   message.suggestion.dismissed = true;
   saveState();
@@ -2429,7 +2570,17 @@ function bindEvents() {
   els.addTemporaryItem.addEventListener("click", addTemporaryItem);
   els.addExtraSlot.addEventListener("click", addExtraSlot);
   els.logToday.addEventListener("click", logToday);
-  els.sendCoachMessage.addEventListener("click", sendCoachMessage);
+  els.sendCoachMessage?.addEventListener("click", () => sendCoachMessage("log"));
+  els.sendOverviewCoachMessage?.addEventListener("click", () => sendCoachMessage("overview"));
+  els.clearCoachHistory?.addEventListener("click", () => clearCoachHistory("log"));
+  els.clearOverviewCoachHistory?.addEventListener("click", () => clearCoachHistory("overview"));
+  els.attachOverviewCoachImage?.addEventListener("click", () => els.overviewCoachImageInput?.click());
+  els.overviewCoachImageInput?.addEventListener("change", (event) => {
+    const [file] = event.target.files || [];
+    selectOverviewCoachImage(file).catch((error) => {
+      if (els.overviewCoachImageStatus) els.overviewCoachImageStatus.textContent = error.message;
+    });
+  });
   els.analyzeTemporaryItem?.addEventListener("click", analyzeTemporaryItemWithAi);
   els.attachTemporaryImage?.addEventListener("click", () => els.temporaryImageInput?.click());
   els.temporaryImageInput?.addEventListener("change", (event) => {
@@ -2448,10 +2599,16 @@ function bindEvents() {
   els.saveAiSettings?.addEventListener("click", saveAiSettingsFromInputs);
   els.loginAi?.addEventListener("click", loginAi);
   els.logoutAi?.addEventListener("click", logoutAi);
-  els.coachInput.addEventListener("keydown", (event) => {
+  els.coachInput?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      sendCoachMessage();
+      sendCoachMessage("log");
+    }
+  });
+  els.overviewCoachInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      sendCoachMessage("overview");
     }
   });
 

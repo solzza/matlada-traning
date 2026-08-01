@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
   }
 
   const day = payload.day || {};
+  const focus = payload.focus === "history_long_term" ? "history_long_term" : "today_general";
   const foodHints = Array.isArray(payload.foodHints) ? payload.foodHints.slice(0, 12) : [];
   const recentMessages = Array.isArray(payload.messages) ? payload.messages.slice(-10) : [];
 
@@ -93,6 +94,7 @@ Deno.serve(async (req) => {
     {
       type: "input_text",
       text: JSON.stringify({
+        focus,
         message,
         day,
         foodHints,
@@ -246,6 +248,10 @@ Du får dagsdata, mål, makro, vatten, måltider, tillfälliga livsmedel, releva
 
 Regler:
 - Svara på svenska.
+- Formatera reply som lättläst Markdown-liknande text: korta stycken, tom rad mellan ämnen och punktlistor med "- " när du nämner flera saker.
+- Använd gärna **fetstil** för korta rubriker, men undvik långa kompakta textblock.
+- Om focus är "today_general": fokusera på dagens intag, snabba val, vatten, måltider och eventuell mat/bild som användaren vill lägga till.
+- Om focus är "history_long_term": fokusera på historiskt registrerad data, mönster över dagar/veckor, återkommande brister, hållbara justeringar och vad som behövs långsiktigt. Ge gärna prioriterade slutsatser och nästa steg.
 - Ge inte medicinska diagnoser. Vid medicinska symtom: rekommendera vårdkontakt.
 - Om användaren beskriver mat som den ätit eller bifogar tallriksbild: uppskatta portionsstorlek och makro så gott det går.
 - Använd databashints när de matchar maten. Om maten saknas, uppskatta själv och sätt confidence låg/medium.
