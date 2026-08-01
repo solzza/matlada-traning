@@ -358,6 +358,24 @@ function format(value, digits = 0) {
   });
 }
 
+function iconSvg(name) {
+  const paths = {
+    check: '<path d="M20 6 9 17l-5-5"></path>',
+    edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+    plus: '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
+    trash: '<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path>',
+  };
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.plus}</svg>`;
+}
+
+function iconButton(name, attrs, label, className = "") {
+  return `<button class="icon-button ${className}" type="button" ${attrs} aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${iconSvg(name)}</button>`;
+}
+
+function trashButton(attrs, label = "Ta bort") {
+  return iconButton("trash", attrs, label, "danger-icon");
+}
+
 function formatDateKey(date = new Date()) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 10);
@@ -983,7 +1001,7 @@ function renderOverview(options = {}) {
                   <input type="number" min="0" step="1" value="${number(item.grams)}" placeholder="g" data-temp="${index}" data-temp-field="grams">
                   <div class="temporary-macro">${format(macros.kcal)} kcal · ${format(macros.protein, 1)} g protein · ${format(macros.carbs, 1)} g kolh · ${format(macros.fat, 1)} g fett</div>
                 </div>
-                <button class="remove-ingredient" type="button" data-remove-temp="${index}" title="Ta bort">×</button>
+                ${trashButton(`data-remove-temp="${index}"`, "Ta bort tillfälligt")}
               </div>
             `;
           })
@@ -1026,7 +1044,7 @@ function renderDailySlot(slot, required) {
               </select>
             </div>
           `}
-        ${required ? `<span class="required-badge">Obligatorisk</span>` : `<button class="remove-ingredient" type="button" data-remove-extra-slot="${slot.id}" title="Ta bort">×</button>`}
+        ${required ? `<span class="required-badge">Obligatorisk</span>` : trashButton(`data-remove-extra-slot="${slot.id}"`, "Ta bort extra")}
       </div>
       <div class="meal-slot-controls">
         <select data-daily-slot="${slot.id}">
@@ -1135,7 +1153,7 @@ function renderRecipes() {
         <div class="ingredient-row">
           <input class="ingredient-name food-lookup" value="${escapeAttr(ingredient.name)}" data-food-lookup data-recipe="${recipe.id}" data-ingredient="${index}" data-field="name">
           <input class="ingredient-grams" type="number" min="0" step="1" value="${ingredient.grams}" data-recipe="${recipe.id}" data-ingredient="${index}" data-field="grams">
-          <button class="remove-ingredient" type="button" data-remove-ingredient="${recipe.id}:${index}" title="Ta bort">×</button>
+          ${trashButton(`data-remove-ingredient="${recipe.id}:${index}"`, "Ta bort ingrediens")}
         </div>
       `).join("");
 
@@ -1144,18 +1162,20 @@ function renderRecipes() {
           <div class="recipe-title-row">
             ${isEditing ? `<input value="${escapeAttr(recipe.name)}" data-recipe-name="${recipe.id}">` : `<h3>${escapeHtml(recipe.name)}</h3>`}
             <div class="card-actions">
-              <button type="button" data-edit-recipe="${recipe.id}">${isEditing ? "Klar" : "Redigera"}</button>
-              ${isEditing ? `<button class="delete-recipe" type="button" data-delete-recipe="${recipe.id}" title="Ta bort rätt">×</button>` : ""}
+              ${iconButton(isEditing ? "check" : "edit", `data-edit-recipe="${recipe.id}"`, isEditing ? "Klar" : "Redigera", "edit-icon")}
+              ${isEditing ? trashButton(`data-delete-recipe="${recipe.id}"`, "Ta bort rätt") : ""}
             </div>
           </div>
           ${renderTagChips(recipe.id, recipe.tags || [], isEditing)}
-          <div class="macro-chips">
-            <span class="chip">${format(macros.kcal)} kcal</span>
-            <span class="chip">${format(macros.protein, 1)} g protein</span>
-            <span class="chip">${format(macros.carbs, 1)} g kolh</span>
-            <span class="chip">${format(macros.fat, 1)} g fett</span>
-            <span class="chip">${format(macros.grams)} g</span>
-          </div>
+          ${isEditing
+            ? `<div class="macro-chips">
+                <span class="chip">${format(macros.kcal)} kcal</span>
+                <span class="chip">${format(macros.protein, 1)} g protein</span>
+                <span class="chip">${format(macros.carbs, 1)} g kolh</span>
+                <span class="chip">${format(macros.fat, 1)} g fett</span>
+                <span class="chip">${format(macros.grams)} g</span>
+              </div>`
+            : `<div class="recipe-compact-macros">${format(macros.kcal)} kcal · ${format(macros.protein, 1)} g protein · ${format(macros.carbs, 1)} g kolh · ${format(macros.fat, 1)} g fett</div>`}
           ${isEditing ? `
             <div class="ingredient-list">${ingredients}</div>
             <button class="add-ingredient" type="button" data-add-ingredient="${recipe.id}">Lägg till ingrediens</button>
@@ -1171,7 +1191,7 @@ function renderTagChips(recipeId, tags, editable) {
   return `
     <div class="tag-editor">
       <div class="tag-chip-list">
-        ${tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}${editable ? `<button type="button" data-remove-tag="${recipeId}:${escapeAttr(tag)}" title="Ta bort tagg">×</button>` : ""}</span>`).join("")}
+        ${tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}${editable ? trashButton(`data-remove-tag="${recipeId}:${escapeAttr(tag)}"`, "Ta bort tagg") : ""}</span>`).join("")}
         ${editable ? `
           <button class="tag-chip phantom-tag" type="button" data-show-tag-input="${recipeId}">+ tagg</button>
           <span class="tag-add-row" hidden data-tag-add-row="${recipeId}">
@@ -1315,7 +1335,7 @@ function renderMenus() {
   els.menuDetail.innerHTML = `
     <div class="menu-title-row">
       <input value="${escapeAttr(menu.name)}" data-menu-name="${menu.id}">
-      <button class="delete-recipe" type="button" data-delete-menu="${menu.id}" title="Ta bort meny">×</button>
+      ${trashButton(`data-delete-menu="${menu.id}"`, "Ta bort meny")}
     </div>
     <div class="macro-chips">
       <span class="chip">${format(macros.kcal)} kcal</span>
@@ -1344,7 +1364,7 @@ function renderMenuItem(menuId, item) {
       <div class="ingredient-row">
         <input class="ingredient-name food-lookup" value="${escapeAttr(ingredient.name)}" data-food-lookup data-menu="${menuId}" data-menu-item="${item.id}" data-menu-ingredient="${index}" data-field="name">
         <input class="ingredient-grams" type="number" min="0" step="1" value="${ingredient.grams}" data-menu="${menuId}" data-menu-item="${item.id}" data-menu-ingredient="${index}" data-field="grams">
-        <button class="remove-ingredient" type="button" data-remove-menu-ingredient="${menuId}:${item.id}:${index}" title="Ta bort">×</button>
+        ${trashButton(`data-remove-menu-ingredient="${menuId}:${item.id}:${index}"`, "Ta bort ingrediens")}
       </div>
     `)
     .join("");
@@ -1354,7 +1374,7 @@ function renderMenuItem(menuId, item) {
       <div class="menu-item-head">
         ${isExpanded ? `<input value="${escapeAttr(item.name)}" data-menu-item-name="${menuId}:${item.id}">` : `<button class="menu-item-toggle" type="button" data-toggle-menu-item="${item.id}"><strong>${escapeHtml(item.name)}</strong><span>${item.ingredients.length} ingredienser</span></button>`}
         <input type="number" min="0" step="0.25" value="${number(item.servings, 1)}" data-menu-item-servings="${menuId}:${item.id}" title="Portioner">
-        <button class="delete-recipe" type="button" data-remove-menu-item="${menuId}:${item.id}" title="Ta bort rätt">×</button>
+        ${trashButton(`data-remove-menu-item="${menuId}:${item.id}"`, "Ta bort rätt")}
       </div>
       <div class="macro-chips">
         <span class="chip">${format(macros.kcal)} kcal</span>
@@ -1740,7 +1760,7 @@ function renderLogEntry(entry) {
       <div class="log-entry clickable" data-edit-log="${entry.id}">
         <div class="log-entry-head">
           <strong>${escapeHtml(entry.date)}</strong>
-          <button class="remove-ingredient" type="button" data-delete-log="${entry.id}" title="Ta bort">×</button>
+          ${trashButton(`data-delete-log="${entry.id}"`, "Ta bort loggrad")}
         </div>
         ${renderMiniMeters(entry.macros)}
         <div class="water-log-line">Vatten: ${formatWaterVolume(entry.waterMl)} / ${formatWaterVolume(entry.waterGoalMl || DEFAULT_WATER_GOAL_ML)}</div>
@@ -2826,7 +2846,8 @@ function bindEvents() {
 
     const recipeToEdit = target.closest("[data-edit-recipe]")?.dataset.editRecipe;
     if (recipeToEdit) {
-      editingRecipeId = editingRecipeId === recipeToEdit ? "" : recipeToEdit;
+      const isClosing = editingRecipeId === recipeToEdit;
+      editingRecipeId = isClosing ? "" : recipeToEdit;
       renderRecipes();
       return;
     }
